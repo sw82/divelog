@@ -1,0 +1,8 @@
+extends layout
+
+block content
+    h1= title
+    form#formAddLocation(name="addlocation",method="post",action="/addlocation")
+        input#inputLocationName(type="text", placeholder="locationname", name="locationname")
+        input#inputLocationDate(type="text", placeholder="date", name="locationdate")
+        button#btnSubmit(type="submit") submit

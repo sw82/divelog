@@ -1,0 +1,9 @@
+extends layout
+
+block content
+    h1.
+        Location List
+    ul
+        each location, i in locationlist
+            li
+                h3 #{location.locationname}
