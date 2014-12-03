@@ -20,7 +20,7 @@ router.get('/locationlist', function(req, res) {
             "locationlist" : docs
         });
     });
-});
+}); 
 
 /* POST to Add User Service */
 router.post('/addlocation', function(req, res) {
