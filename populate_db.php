@@ -949,6 +949,8 @@ function getDiveImages($divelogId) {
     <nav class="menu">
         <a href="index.php">View Dive Log</a>
         <a href="populate_db.php" class="active">Manage Database</a>
+        <a href="fish_manager.php">Fish Species</a>
+        <a href="backup_db.php">Backup Database</a>
     </nav>
     <h1>Dive Log Database Manager</h1>
     

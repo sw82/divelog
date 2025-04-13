@@ -194,6 +194,7 @@ rsort($years);
         <a href="index.php" class="active">View Dive Log</a>
         <a href="populate_db.php">Manage Database</a>
         <a href="fish_manager.php">Fish Species</a>
+        <a href="backup_db.php">Backup Database</a>
     </nav>
     <h1>Dive Log</h1>
     

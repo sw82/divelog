@@ -1,6 +1,7 @@
 # Logs
 logs
 *.log
+*.err
 
 # Runtime data
 pids
@@ -26,3 +27,31 @@ node_modules
 
 # Users Environment Variables
 .lock-wscript
+
+# macOS files
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# MySQL files
+*.cnf
+*.index
+divelog
+
+# PHP specific
+vendor/
+composer.lock
+
+# Sensitive information
+db.php
+
+# Upload directories - ignore the files but keep the directories
+uploads/diveimages/*
+uploads/fishimages/*
+!uploads/diveimages/.gitkeep
+!uploads/fishimages/.gitkeep
+
+# Backup files
+backups/*
+!backups/.gitkeep

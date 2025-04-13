@@ -345,6 +345,7 @@ if (isset($_GET['success'])) {
         <a href="index.php">View Dive Log</a>
         <a href="populate_db.php">Manage Database</a>
         <a href="fish_manager.php">Fish Species</a>
+        <a href="backup_db.php">Backup Database</a>
     </nav>
     
     <div class="back-link">
