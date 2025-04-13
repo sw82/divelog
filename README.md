@@ -11,10 +11,14 @@ Done with Vibe Coding.
 - [x] Add Geolocation and geocode
 - [x] Show Map
 - [x] git
-- [ ] can the list of fish be a list of fish in the database or a smart way to keep track of all - I later want to get images of the fish I've seen from Wikipedia or the web (once found they need to be storead as well so we don't need to look them up every time again). 
+- [x] can the list of fish be a list of fish in the database or a smart way to keep track of all - I later want to get images of the fish I've seen from Wikipedia or the web (once found they need to be storead as well so we don't need to look them up every time again). 
+- [ ] I need a smart way to also backup the database schema and the content.
 - [ ] color code the years
 - [ ] list of fish seen
 - [ ] create a smart way to add my old log book
+
+
+
 
 ## Project Changes
 
@@ -29,5 +33,7 @@ This project has undergone a major restructuring:
   - Year-based filtering
   - Dive site categorization
   - Ratings system
+  - Fish species tracking with images from both uploads and web sources
+  - Recording fish sightings linked to specific dives
 - Simplified architecture for easier maintenance and self-hosting
 

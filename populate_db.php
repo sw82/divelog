@@ -427,6 +427,84 @@ if ($result->num_rows > 0) {
             echo "<div class='error'>Error creating images table: " . $conn->error . "</div>";
         }
     }
+
+    // Check if fish_species table exists
+    $result = $conn->query("SHOW TABLES LIKE 'fish_species'");
+    if ($result->num_rows == 0) {
+        // Create the fish species table
+        $createFishSpeciesTable = "CREATE TABLE fish_species (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            common_name VARCHAR(255) NOT NULL COMMENT 'Common name of the fish',
+            scientific_name VARCHAR(255) COMMENT 'Scientific name (genus species)',
+            description TEXT COMMENT 'Description of the fish',
+            habitat TEXT COMMENT 'Typical habitat',
+            size_range VARCHAR(100) COMMENT 'Typical size range',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )";
+        
+        if ($conn->query($createFishSpeciesTable) === TRUE) {
+            echo "<div class='success'>Fish species table created successfully.</div>";
+        } else {
+            echo "<div class='error'>Error creating fish species table: " . $conn->error . "</div>";
+        }
+    }
+
+    // Check if fish_sightings table exists
+    $result = $conn->query("SHOW TABLES LIKE 'fish_sightings'");
+    if ($result->num_rows == 0) {
+        // Create the fish sightings table (junction table between dives and fish)
+        $createFishSightingsTable = "CREATE TABLE fish_sightings (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            divelog_id INT NOT NULL COMMENT 'Foreign key to divelogs table',
+            fish_species_id INT NOT NULL COMMENT 'Foreign key to fish_species table',
+            sighting_date DATE COMMENT 'Date fish was spotted',
+            quantity VARCHAR(50) COMMENT 'Estimated quantity (single, few, many, school)',
+            notes TEXT COMMENT 'Notes about the sighting',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (divelog_id) REFERENCES divelogs(id) ON DELETE CASCADE,
+            FOREIGN KEY (fish_species_id) REFERENCES fish_species(id) ON DELETE CASCADE
+        )";
+        
+        if ($conn->query($createFishSightingsTable) === TRUE) {
+            echo "<div class='success'>Fish sightings table created successfully.</div>";
+        } else {
+            echo "<div class='error'>Error creating fish sightings table: " . $conn->error . "</div>";
+        }
+    }
+
+    // Check if fish_images table exists
+    $result = $conn->query("SHOW TABLES LIKE 'fish_images'");
+    if ($result->num_rows == 0) {
+        // Create the fish images table
+        $createFishImagesTable = "CREATE TABLE fish_images (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            fish_species_id INT NOT NULL COMMENT 'Foreign key to fish_species table',
+            filename VARCHAR(255) NOT NULL COMMENT 'Image filename',
+            source_url VARCHAR(512) COMMENT 'URL where image was sourced from',
+            source_name VARCHAR(255) COMMENT 'Source name (e.g., Wikipedia, Personal)',
+            license_info TEXT COMMENT 'Image license information',
+            is_primary BOOLEAN DEFAULT 0 COMMENT 'Is this the primary image for the species',
+            upload_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (fish_species_id) REFERENCES fish_species(id) ON DELETE CASCADE
+        )";
+        
+        if ($conn->query($createFishImagesTable) === TRUE) {
+            echo "<div class='success'>Fish images table created successfully.</div>";
+            
+            // Create uploads directory for fish images if it doesn't exist
+            $fishUploadsDir = 'uploads/fishimages';
+            if (!file_exists($fishUploadsDir)) {
+                if (mkdir($fishUploadsDir, 0755, true)) {
+                    echo "<div class='success'>Fish images uploads directory created successfully.</div>";
+                } else {
+                    echo "<div class='error'>Failed to create fish images uploads directory. Please create it manually: $fishUploadsDir</div>";
+                }
+            }
+        } else {
+            echo "<div class='error'>Error creating fish images table: " . $conn->error . "</div>";
+        }
+    }
 }
 
 // Clear table if requested
