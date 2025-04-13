@@ -20,6 +20,31 @@ function getDiveImages($divelogId) {
     return $images;
 }
 
+// Function to get fish sightings for a dive
+function getFishSightings($divelogId) {
+    global $conn;
+    $sightings = [];
+    
+    $stmt = $conn->prepare("
+        SELECT fs.*, fs.id as sighting_id, f.common_name, f.scientific_name, f.id as fish_id, 
+               (SELECT filename FROM fish_images WHERE fish_species_id = f.id AND is_primary = 1 LIMIT 1) as fish_image
+        FROM fish_sightings fs
+        JOIN fish_species f ON fs.fish_species_id = f.id
+        WHERE fs.divelog_id = ?
+        ORDER BY fs.sighting_date DESC
+    ");
+    $stmt->bind_param("i", $divelogId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    
+    while ($row = $result->fetch_assoc()) {
+        $sightings[] = $row;
+    }
+    
+    $stmt->close();
+    return $sightings;
+}
+
 // Fetch dive logs from the database
 $query = "SELECT * FROM divelogs";
 $result = $conn->query($query);
@@ -37,6 +62,9 @@ if ($result && $result->num_rows > 0) {
     while ($row = $result->fetch_assoc()) {
         // Get images for this dive
         $diveImages = getDiveImages($row['id']);
+        
+        // Get fish sightings for this dive
+        $fishSightings = getFishSightings($row['id']);
         
         $diveLogsData[] = [
             'id' => $row['id'],
@@ -61,7 +89,8 @@ if ($result && $result->num_rows > 0) {
                     'filename' => $img['filename'],
                     'caption' => $img['caption']
                 ];
-            }, $diveImages)
+            }, $diveImages),
+            'fish_sightings' => $fishSightings
         ];
         
         // Collect unique years for filter
@@ -93,6 +122,72 @@ rsort($years);
     <title>Dive Log</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <style>
+        .fish-sightings-container {
+            margin-top: 15px;
+            border-top: 1px solid #eee;
+            padding-top: 15px;
+        }
+        .fish-sightings-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .fish-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .fish-item {
+            display: flex;
+            align-items: center;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 5px;
+            background-color: #f9f9f9;
+            max-width: 100%;
+        }
+        .fish-image {
+            width: 40px;
+            height: 40px;
+            object-fit: cover;
+            border-radius: 3px;
+            margin-right: 8px;
+            flex-shrink: 0;
+        }
+        .fish-image-placeholder {
+            width: 40px;
+            height: 40px;
+            background-color: #eee;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 3px;
+            margin-right: 8px;
+            font-size: 10px;
+            text-align: center;
+            color: #777;
+        }
+        .fish-info {
+            flex-grow: 1;
+            overflow: hidden;
+        }
+        .fish-name {
+            font-weight: bold;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 12px;
+        }
+        .fish-quantity {
+            font-size: 11px;
+            color: #666;
+        }
+        .more-fish {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #2196F3;
+        }
+    </style>
 </head>
 <body>
     <nav class="menu">

@@ -64,6 +64,7 @@ document.addEventListener('DOMContentLoaded', function() {
             var detailsAdded = false;
             popupContent += '<div class="dive-details">';
             
+            // Add basic dive metrics
             if (diveLog.depth) {
                 popupContent += `<p><strong>Depth:</strong> ${diveLog.depth} m</p>`;
                 detailsAdded = true;
@@ -76,15 +77,45 @@ document.addEventListener('DOMContentLoaded', function() {
                 popupContent += `<p><strong>Water Temp:</strong> ${diveLog.temperature}°C</p>`;
                 detailsAdded = true;
             }
+            
+            // Add additional dive details
+            if (diveLog.air_temperature) {
+                popupContent += `<p><strong>Air Temp:</strong> ${diveLog.air_temperature}°C</p>`;
+                detailsAdded = true;
+            }
+            if (diveLog.visibility) {
+                popupContent += `<p><strong>Visibility:</strong> ${diveLog.visibility} m</p>`;
+                detailsAdded = true;
+            }
+            if (diveLog.buddy) {
+                popupContent += `<p><strong>Dive Partner:</strong> ${diveLog.buddy}</p>`;
+                detailsAdded = true;
+            }
             if (diveLog.dive_site_type) {
                 popupContent += `<p><strong>Site Type:</strong> ${diveLog.dive_site_type}</p>`;
+                detailsAdded = true;
+            }
+            if (diveLog.rating) {
+                // Convert rating number to stars
+                const stars = '★'.repeat(diveLog.rating);
+                popupContent += `<p><strong>Rating:</strong> ${stars}</p>`;
                 detailsAdded = true;
             }
             
             popupContent += '</div>';
             
             // Add description
-            popupContent += `<p class="dive-description">${diveLog.description}</p>`;
+            if (diveLog.description) {
+                popupContent += `<p class="dive-description">${diveLog.description}</p>`;
+            }
+            
+            // Add comments if available
+            if (diveLog.comments) {
+                popupContent += `<div class="dive-comments">
+                    <strong>Comments:</strong>
+                    <p>${diveLog.comments}</p>
+                </div>`;
+            }
             
             // Add dive images if available
             if (diveLog.images && diveLog.images.length > 0) {
@@ -109,6 +140,47 @@ document.addEventListener('DOMContentLoaded', function() {
                 popupContent += '</div>';
             }
             
+            // Add fish sightings if available
+            if (diveLog.fish_sightings && diveLog.fish_sightings.length > 0) {
+                popupContent += `
+                    <div class="fish-sightings-container">
+                        <div class="fish-sightings-title">Fish Spotted (${diveLog.fish_sightings.length}):</div>
+                        <div class="fish-list">
+                `;
+                
+                // Show up to 6 fish in the popup
+                const fishToShow = diveLog.fish_sightings.slice(0, 6);
+                fishToShow.forEach(function(sighting) {
+                    // Determine the display name
+                    const fishName = sighting.common_name || sighting.scientific_name || 'Unknown Fish';
+                    
+                    // Create fish item with image if available
+                    popupContent += `<div class="fish-item">`;
+                    
+                    if (sighting.fish_image) {
+                        popupContent += `<img src="uploads/fishimages/${sighting.fish_image}" alt="${fishName}" class="fish-image">`;
+                    } else {
+                        popupContent += `<div class="fish-image-placeholder">No Image</div>`;
+                    }
+                    
+                    popupContent += `
+                        <div class="fish-info">
+                            <div class="fish-name" title="${fishName}">${fishName}</div>
+                            <div class="fish-quantity">${sighting.quantity || 'Spotted'}</div>
+                        </div>
+                    </div>`;
+                });
+                
+                popupContent += `</div>`;
+                
+                // If there are more fish, add a link
+                if (diveLog.fish_sightings.length > 6) {
+                    popupContent += `<a href="populate_db.php?edit=${diveLog.id}" class="more-fish">+ ${diveLog.fish_sightings.length - 6} more fish species</a>`;
+                }
+                
+                popupContent += `</div>`;
+            }
+            
             popupContent += `
                 <div class="popup-footer">
                     <a href="populate_db.php?edit=${diveLog.id}" class="popup-edit-link">Edit Dive</a>
@@ -117,8 +189,8 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Bind popup to marker
             marker.bindPopup(popupContent, {
-                maxWidth: 300,
-                minWidth: 250,
+                maxWidth: 350,
+                minWidth: 300,
                 className: 'dive-popup-container'
             });
             
