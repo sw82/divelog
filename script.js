@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', function() {
         maxZoom: 19,
         attribution: '© OpenStreetMap contributors'
     }).addTo(map);
-    
+
     // Store all markers for filtering
     var markers = [];
     

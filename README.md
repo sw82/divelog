@@ -17,10 +17,13 @@ Done with Vibe Coding.
 - [x] list of fish seen
 - [x] make edit and add fish when creating or editing a dive entry
 - [ ] create a smart way to add my old log book. it is all pictures atm.
-- [ ] download multiple dives at once / zip them
+- [x] download multiple dives at once as csv with all values
 - [ ] search for a specific location (all three fields) or divepoint
 - [ ] backup your data to google drive
+- [ ] next to diving add snorkeling as option in the database as well in the interfaces.
 - [ ] if there are many dive spots at one location/zoom level add a number and once you click it offer a selection.
+- [] check for security. also if I add this to git I don't want any personla information in it
+- [] add to the readme all steps needed to set up the project (database, webserv etc.)
 
 
 

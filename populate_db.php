@@ -152,6 +152,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
     $diveSiteType = !empty($_POST['dive_site_type']) ? $_POST['dive_site_type'] : null;
     $rating = !empty($_POST['rating']) ? $_POST['rating'] : null;
     $comments = !empty($_POST['comments']) ? $_POST['comments'] : null;
+    $diveTime = !empty($_POST['dive_time']) ? $_POST['dive_time'] : null;
     
     // Check if coordinates are provided
     if (!empty($_POST['latitude']) && !empty($_POST['longitude'])) {
@@ -173,8 +174,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
         }
     }
     
-    $stmt = $conn->prepare("INSERT INTO divelogs (location, latitude, longitude, date, description, depth, duration, temperature, air_temperature, visibility, buddy, dive_site_type, rating, comments) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-    $stmt->bind_param("sddssddddissss", $location, $latitude, $longitude, $date, $description, $depth, $duration, $temperature, $airTemperature, $visibility, $buddy, $diveSiteType, $rating, $comments);
+    $stmt = $conn->prepare("INSERT INTO divelogs (location, latitude, longitude, date, dive_time, description, depth, duration, temperature, air_temperature, visibility, buddy, dive_site_type, rating, comments) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    $stmt->bind_param("sddsssddddissss", $location, $latitude, $longitude, $date, $diveTime, $description, $depth, $duration, $temperature, $airTemperature, $visibility, $buddy, $diveSiteType, $rating, $comments);
     
     if ($stmt->execute()) {
         $newDiveLogId = $stmt->insert_id;
@@ -1335,6 +1336,7 @@ function getAllFishSpecies() {
                         </td>
                         <td>
                             <input type="date" name="date" required>
+                            <input type="time" name="dive_time" step="300">
                         </td>
                         <td>
                             <div class="more-fields-container">
@@ -1553,7 +1555,7 @@ function getAllFishSpecies() {
             
             <div class="form-group">
                 <label for="comments">Comments/Notes:</label>
-                <textarea id="comments" name="comments"><?php echo htmlspecialchars($editEntry['comments']); ?></textarea>
+                <textarea id="comments" name="comments"><?php echo htmlspecialchars($editEntry['comments'] ?? ''); ?></textarea>
             </div>
             
             <!-- Image Upload Section -->
