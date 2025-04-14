@@ -11,6 +11,38 @@ document.addEventListener('DOMContentLoaded', function() {
     // Store all markers for filtering
     var markers = [];
     
+    // Define colors for different years
+    var yearColors = {};
+    var colorPalette = [
+        '#e6194B', '#3cb44b', '#ffe119', '#4363d8', '#f58231', 
+        '#911eb4', '#42d4f4', '#f032e6', '#bfef45', '#fabed4', 
+        '#469990', '#dcbeff', '#9A6324', '#fffac8', '#800000', 
+        '#aaffc3', '#808000', '#ffd8b1', '#000075', '#a9a9a9'
+    ];
+    
+    // Function to get color for a year
+    function getColorForYear(year) {
+        if (!yearColors[year]) {
+            // Assign a color from the palette, or cycle back if we have more years than colors
+            const colorIndex = Object.keys(yearColors).length % colorPalette.length;
+            yearColors[year] = colorPalette[colorIndex];
+        }
+        return yearColors[year];
+    }
+    
+    // Function to create a colored marker
+    function createColoredMarker(lat, lng, color) {
+        return L.marker([lat, lng], {
+            icon: L.divIcon({
+                className: 'colored-marker',
+                html: `<div style="background-color: ${color}; width: 24px; height: 24px; border-radius: 12px; border: 2px solid white;"></div>`,
+                iconSize: [28, 28],
+                iconAnchor: [14, 14],
+                popupAnchor: [0, -14]
+            })
+        });
+    }
+    
     // Function to display markers based on selected year
     function displayMarkers(selectedYear) {
         // Create a bounds object to fit visible markers
@@ -43,13 +75,50 @@ document.addEventListener('DOMContentLoaded', function() {
         // Update counter in UI
         document.getElementById('filtered-count').textContent = visibleCount;
     }
+    
+    // Create a legend for year colors
+    function createYearLegend(years) {
+        var legend = L.control({ position: 'bottomright' });
+        
+        legend.onAdd = function(map) {
+            var div = L.DomUtil.create('div', 'year-legend');
+            div.innerHTML = '<h4>Dive Years</h4>';
+            
+            // Sort years chronologically
+            years.sort();
+            
+            // Add each year with its color
+            years.forEach(function(year) {
+                div.innerHTML += 
+                    `<div class="legend-item">
+                        <span class="color-box" style="background-color: ${getColorForYear(year)}"></span>
+                        <span>${year}</span>
+                    </div>`;
+            });
+            
+            return div;
+        };
+        
+        return legend;
+    }
 
     // Check if we have dive log data
     if (typeof diveLogsData !== 'undefined' && diveLogsData.length > 0) {
+        // Collect unique years for the legend
+        var uniqueYears = [];
+        
         // Create markers for each dive spot
         diveLogsData.forEach(function(diveLog) {
-            // Create marker
-            var marker = L.marker([diveLog.latitude, diveLog.longitude]);
+            // Track unique years
+            if (!uniqueYears.includes(diveLog.year)) {
+                uniqueYears.push(diveLog.year);
+            }
+            
+            // Get color for this year
+            var markerColor = getColorForYear(diveLog.year);
+            
+            // Create marker with color
+            var marker = createColoredMarker(diveLog.latitude, diveLog.longitude, markerColor);
             
             // Store the year with the marker for filtering
             marker.diveYear = diveLog.year;
@@ -200,6 +269,9 @@ document.addEventListener('DOMContentLoaded', function() {
             // Add to map initially
             marker.addTo(map);
         });
+        
+        // Add the year legend to the map
+        createYearLegend(uniqueYears).addTo(map);
         
         // Initial map fit to bounds
         if (markers.length > 1) {

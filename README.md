@@ -13,10 +13,14 @@ Done with Vibe Coding.
 - [x] git
 - [x] can the list of fish be a list of fish in the database or a smart way to keep track of all - I later want to get images of the fish I've seen from Wikipedia or the web (once found they need to be storead as well so we don't need to look them up every time again). 
 - [x] I need a smart way to also backup the database schema and the content.
-- [ ] color code the years
-- [ ] list of fish seen
-- [ ] create a smart way to add my old log book
-
+- [x] color code the marker on the map overview based on the years
+- [x] list of fish seen
+- [x] make edit and add fish when creating or editing a dive entry
+- [ ] create a smart way to add my old log book. it is all pictures atm.
+- [ ] download multiple dives at once / zip them
+- [ ] search for a specific location (all three fields) or divepoint
+- [ ] backup your data to google drive
+- [ ] if there are many dive spots at one location/zoom level add a number and once you click it offer a selection.
 
 
 

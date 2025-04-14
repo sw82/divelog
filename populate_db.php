@@ -336,9 +336,45 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
     $stmt->close();
 }
 
+// Handle adding a new fish sighting to a dive
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == 'add_fish_sighting') {
+    $divelogId = $_POST['divelog_id'];
+    $fishSpeciesId = $_POST['fish_species_id'];
+    $sightingDate = $_POST['sighting_date'];
+    $quantity = $_POST['quantity'] ?? '';
+    $notes = $_POST['notes'] ?? '';
+    
+    $stmt = $conn->prepare("INSERT INTO fish_sightings (divelog_id, fish_species_id, sighting_date, quantity, notes) VALUES (?, ?, ?, ?, ?)");
+    $stmt->bind_param("iisss", $divelogId, $fishSpeciesId, $sightingDate, $quantity, $notes);
+    
+    if ($stmt->execute()) {
+        echo "<div class='success'>Fish sighting added successfully.</div>";
+    } else {
+        echo "<div class='error'>Error adding fish sighting: " . $stmt->error . "</div>";
+    }
+    $stmt->close();
+}
+
+// Handle deleting a fish sighting
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == 'delete_fish_sighting') {
+    $sightingId = $_POST['sighting_id'];
+    $divelogId = $_POST['divelog_id'];
+    
+    $stmt = $conn->prepare("DELETE FROM fish_sightings WHERE id = ? AND divelog_id = ?");
+    $stmt->bind_param("ii", $sightingId, $divelogId);
+    
+    if ($stmt->execute()) {
+        echo "<div class='success'>Fish sighting removed successfully.</div>";
+    } else {
+        echo "<div class='error'>Error removing fish sighting: " . $stmt->error . "</div>";
+    }
+    $stmt->close();
+}
+
 // Fetch entry for editing
 $editEntry = null;
 $diveImages = [];
+$diveFishSightings = [];
 if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
     $id = $_GET['edit'];
     $stmt = $conn->prepare("SELECT * FROM divelogs WHERE id = ?");
@@ -349,9 +385,14 @@ if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
         $editEntry = $result->fetch_assoc();
         // Fetch images for this dive log
         $diveImages = getDiveImages($id);
+        // Fetch fish sightings for this dive log
+        $diveFishSightings = getDiveFishSightings($id);
     }
     $stmt->close();
 }
+
+// Get all fish species for the dropdown
+$allFishSpecies = getAllFishSpecies();
 
 // Check if the table exists
 $tableExists = false;
@@ -406,6 +447,7 @@ if ($result->num_rows > 0) {
             original_filename VARCHAR(255) COMMENT 'Original uploaded filename',
             file_size INT COMMENT 'File size in bytes',
             file_type VARCHAR(100) COMMENT 'MIME type',
+            type ENUM('dive_photo', 'logbook_page') DEFAULT 'dive_photo' COMMENT 'Type of image',
             upload_date DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Upload timestamp',
             caption TEXT COMMENT 'Image caption',
             FOREIGN KEY (divelog_id) REFERENCES divelogs(id) ON DELETE CASCADE
@@ -425,6 +467,20 @@ if ($result->num_rows > 0) {
             }
         } else {
             echo "<div class='error'>Error creating images table: " . $conn->error . "</div>";
+        }
+    } else {
+        // Check if the type column exists
+        $result = $conn->query("SHOW COLUMNS FROM divelog_images LIKE 'type'");
+        if ($result->num_rows == 0) {
+            // Add the type column
+            $alterTable = "ALTER TABLE divelog_images 
+                ADD COLUMN type ENUM('dive_photo', 'logbook_page') DEFAULT 'dive_photo' COMMENT 'Type of image'";
+                
+            if ($conn->query($alterTable) === TRUE) {
+                echo "<div class='success'>Images table updated with type field.</div>";
+            } else {
+                echo "<div class='error'>Error updating images table: " . $conn->error . "</div>";
+            }
         }
     }
 
@@ -554,89 +610,217 @@ if ($tableExists) {
     }
 }
 
-// Handle image uploads
+/**
+ * Uploads images associated with a dive log entry
+ * 
+ * @param int $divelogId The ID of the dive log entry
+ * @return array Associative array with upload status
+ */
 function uploadDiveImages($divelogId) {
     global $conn;
-    $uploadedFiles = [];
-    $errors = [];
-    $uploadsDir = 'uploads/diveimages';
     
-    // Make sure the uploads directory exists
-    if (!file_exists($uploadsDir)) {
-        if (!mkdir($uploadsDir, 0755, true)) {
-            return ['success' => false, 'message' => 'Failed to create uploads directory.'];
-        }
-    }
-    
-    // Check if files were uploaded
-    if (!empty($_FILES['dive_images']['name'][0])) {
-        $fileCount = count($_FILES['dive_images']['name']);
-        
-        for ($i = 0; $i < $fileCount; $i++) {
-            if ($_FILES['dive_images']['error'][$i] === UPLOAD_ERR_OK) {
-                $tempName = $_FILES['dive_images']['tmp_name'][$i];
-                $originalName = $_FILES['dive_images']['name'][$i];
-                $fileSize = $_FILES['dive_images']['size'][$i];
-                $fileType = $_FILES['dive_images']['type'][$i];
-                
-                // Validate file type
-                $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-                if (!in_array($fileType, $allowedTypes)) {
-                    $errors[] = "File '$originalName' is not an allowed image type. Only JPG, PNG, GIF, and WEBP are supported.";
-                    continue;
-                }
-                
-                // Validate file size (max 5MB)
-                $maxSize = 5 * 1024 * 1024; // 5MB
-                if ($fileSize > $maxSize) {
-                    $errors[] = "File '$originalName' exceeds the maximum allowed size of 5MB.";
-                    continue;
-                }
-                
-                // Generate a unique filename
-                $extension = pathinfo($originalName, PATHINFO_EXTENSION);
-                $newFilename = $divelogId . '_' . uniqid() . '.' . $extension;
-                $destination = $uploadsDir . '/' . $newFilename;
-                
-                // Move the uploaded file
-                if (move_uploaded_file($tempName, $destination)) {
-                    // Add to database
-                    $stmt = $conn->prepare("INSERT INTO divelog_images (divelog_id, filename, original_filename, file_size, file_type) VALUES (?, ?, ?, ?, ?)");
-                    $stmt->bind_param("issss", $divelogId, $newFilename, $originalName, $fileSize, $fileType);
-                    
-                    if ($stmt->execute()) {
-                        $uploadedFiles[] = [
-                            'id' => $stmt->insert_id,
-                            'filename' => $newFilename,
-                            'original_name' => $originalName
-                        ];
-                    } else {
-                        $errors[] = "Database error for '$originalName': " . $stmt->error;
-                    }
-                    $stmt->close();
-                } else {
-                    $errors[] = "Failed to save '$originalName'.";
-                }
-            } else {
-                $uploadError = $_FILES['dive_images']['error'][$i];
-                $errors[] = "Upload error for file #" . ($i + 1) . ": " . $uploadError;
-            }
-        }
-    }
-    
-    return [
-        'success' => !empty($uploadedFiles),
-        'uploaded' => $uploadedFiles,
-        'errors' => $errors
+    $response = [
+        'success' => true,
+        'message' => 'All files processed',
+        'uploaded' => 0,
+        'failed' => 0,
+        'file_statuses' => []
     ];
+    
+    // Process dive photos
+    if (!empty($_FILES['images']['name'][0])) {
+        processImageUploads($divelogId, 'images', 'dive_photo', $response);
+    }
+    
+    // Process logbook pages
+    if (!empty($_FILES['logbook_images']['name'][0])) {
+        processImageUploads($divelogId, 'logbook_images', 'logbook_page', $response);
+    }
+    
+    // Update the final message based on results
+    if ($response['failed'] > 0 && $response['uploaded'] > 0) {
+        $response['message'] = "Uploaded {$response['uploaded']} files, {$response['failed']} failed";
+    } elseif ($response['failed'] > 0 && $response['uploaded'] == 0) {
+        $response['success'] = false;
+        $response['message'] = "Failed to upload all {$response['failed']} files";
+    } elseif ($response['uploaded'] > 0) {
+        $response['message'] = "Successfully uploaded {$response['uploaded']} files";
+    } else {
+        $response['message'] = "No files were processed";
+    }
+    
+    return $response;
 }
 
-// Fetch images for a dive log entry
-function getDiveImages($divelogId) {
+/**
+ * Processes image uploads for a specific type
+ * 
+ * @param int $divelogId The ID of the dive log entry
+ * @param string $fileInputName Name of the file input field
+ * @param string $imageType Type of image ('dive_photo' or 'logbook_page')
+ * @param array &$response Reference to the response array to update
+ */
+function processImageUploads($divelogId, $fileInputName, $imageType, &$response) {
+    global $conn;
+    
+    $allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
+    $maxFileSize = 5 * 1024 * 1024; // 5MB
+    
+    $targetDir = "uploads/diveimages/";
+    if (!file_exists($targetDir)) {
+        mkdir($targetDir, 0777, true);
+    }
+    
+    $files = $_FILES[$fileInputName];
+    $fileCount = count($files['name']);
+    
+    for ($i = 0; $i < $fileCount; $i++) {
+        $fileStatus = [
+            'name' => $files['name'][$i],
+            'status' => 'unknown',
+            'message' => ''
+        ];
+        
+        // Skip empty file slots
+        if (empty($files['name'][$i])) {
+            continue;
+        }
+        
+        // Check for errors
+        if ($files['error'][$i] !== UPLOAD_ERR_OK) {
+            $fileStatus['status'] = 'error';
+            $fileStatus['message'] = getUploadErrorMessage($files['error'][$i]);
+            $response['failed']++;
+            $response['file_statuses'][] = $fileStatus;
+            continue;
+        }
+        
+        // Check file type
+        $fileType = $files['type'][$i];
+        if (!in_array($fileType, $allowedTypes)) {
+            $fileStatus['status'] = 'error';
+            $fileStatus['message'] = 'Invalid file type. Only JPG, PNG, and GIF are allowed.';
+            $response['failed']++;
+            $response['file_statuses'][] = $fileStatus;
+            continue;
+        }
+        
+        // Check file size
+        if ($files['size'][$i] > $maxFileSize) {
+            $fileStatus['status'] = 'error';
+            $fileStatus['message'] = 'File too large. Maximum size is 5MB.';
+            $response['failed']++;
+            $response['file_statuses'][] = $fileStatus;
+            continue;
+        }
+        
+        // Generate unique filename
+        $fileExt = pathinfo($files['name'][$i], PATHINFO_EXTENSION);
+        $newFilename = uniqid('dive_' . $divelogId . '_') . '.' . $fileExt;
+        $targetFile = $targetDir . $newFilename;
+        
+        // Upload file
+        if (move_uploaded_file($files['tmp_name'][$i], $targetFile)) {
+            // Insert into database
+            $stmt = $conn->prepare("INSERT INTO divelog_images (divelog_id, filename, uploaded_at, type) VALUES (?, ?, NOW(), ?)");
+            $stmt->bind_param("iss", $divelogId, $newFilename, $imageType);
+            
+            if ($stmt->execute()) {
+                $fileStatus['status'] = 'success';
+                $fileStatus['message'] = 'File uploaded successfully';
+                $fileStatus['filename'] = $newFilename;
+                $response['uploaded']++;
+            } else {
+                $fileStatus['status'] = 'error';
+                $fileStatus['message'] = 'Database error: ' . $stmt->error;
+                unlink($targetFile); // Delete the uploaded file
+                $response['failed']++;
+            }
+        } else {
+            $fileStatus['status'] = 'error';
+            $fileStatus['message'] = 'Failed to move uploaded file';
+            $response['failed']++;
+        }
+        
+        $response['file_statuses'][] = $fileStatus;
+    }
+}
+
+/**
+ * Returns a human-readable error message for upload errors
+ * 
+ * @param int $errorCode PHP upload error code
+ * @return string Human-readable error message
+ */
+function getUploadErrorMessage($errorCode) {
+    switch ($errorCode) {
+        case UPLOAD_ERR_INI_SIZE:
+        case UPLOAD_ERR_FORM_SIZE:
+            return 'File too large';
+        case UPLOAD_ERR_PARTIAL:
+            return 'File was only partially uploaded';
+        case UPLOAD_ERR_NO_FILE:
+            return 'No file was uploaded';
+        case UPLOAD_ERR_NO_TMP_DIR:
+            return 'Missing temporary folder';
+        case UPLOAD_ERR_CANT_WRITE:
+            return 'Failed to write file to disk';
+        case UPLOAD_ERR_EXTENSION:
+            return 'File upload stopped by extension';
+        default:
+            return 'Unknown upload error';
+    }
+}
+
+/**
+ * Get images for a specific dive log entry
+ * 
+ * @param int $divelogId The dive log ID to retrieve images for
+ * @param string $imageType Optional image type filter ('dive_photo', 'logbook_page', or 'all')
+ * @return array Array of image data
+ */
+function getDiveImages($divelogId, $imageType = 'all') {
+    global $conn;
+    
+    $images = [];
+    
+    $sql = "SELECT id, filename, caption, type FROM divelog_images WHERE divelog_id = ?";
+    
+    // Add type filter if specified
+    if ($imageType !== 'all') {
+        $sql .= " AND type = ?";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("is", $divelogId, $imageType);
+    } else {
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("i", $divelogId);
+    }
+    
+    $stmt->execute();
+    $result = $stmt->get_result();
+    
+    if ($result->num_rows > 0) {
+        while ($row = $result->fetch_assoc()) {
+            $images[] = [
+                'id' => $row['id'],
+                'filename' => $row['filename'],
+                'caption' => $row['caption'],
+                'type' => $row['type'],
+                'url' => 'uploads/diveimages/' . $row['filename']
+            ];
+        }
+    }
+    
+    $stmt->close();
+    return $images;
+}
+
+// Fetch logbook page images for a dive log entry
+function getLogbookImages($divelogId) {
     global $conn;
     $images = [];
     
-    $stmt = $conn->prepare("SELECT * FROM divelog_images WHERE divelog_id = ? ORDER BY upload_date DESC");
+    $stmt = $conn->prepare("SELECT * FROM divelog_images WHERE divelog_id = ? AND type = 'logbook_page' ORDER BY upload_date DESC");
     $stmt->bind_param("i", $divelogId);
     $stmt->execute();
     $result = $stmt->get_result();
@@ -647,6 +831,48 @@ function getDiveImages($divelogId) {
     
     $stmt->close();
     return $images;
+}
+
+// Function to get fish sightings for a dive
+function getDiveFishSightings($divelogId) {
+    global $conn;
+    $sightings = [];
+    
+    $stmt = $conn->prepare("
+        SELECT fs.*, fs.id as sighting_id, f.common_name, f.scientific_name, f.id as fish_id, 
+               (SELECT filename FROM fish_images WHERE fish_species_id = f.id AND is_primary = 1 LIMIT 1) as fish_image
+        FROM fish_sightings fs
+        JOIN fish_species f ON fs.fish_species_id = f.id
+        WHERE fs.divelog_id = ?
+        ORDER BY fs.sighting_date DESC
+    ");
+    $stmt->bind_param("i", $divelogId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    
+    while ($row = $result->fetch_assoc()) {
+        $sightings[] = $row;
+    }
+    
+    $stmt->close();
+    return $sightings;
+}
+
+// Function to get all fish species for selecting
+function getAllFishSpecies() {
+    global $conn;
+    $species = [];
+    
+    $query = "SELECT * FROM fish_species ORDER BY common_name";
+    $result = $conn->query($query);
+    
+    if ($result && $result->num_rows > 0) {
+        while ($row = $result->fetch_assoc()) {
+            $species[] = $row;
+        }
+    }
+    
+    return $species;
 }
 ?>
 
@@ -797,120 +1023,154 @@ function getDiveImages($divelogId) {
             align-items: center;
             gap: 10px;
         }
-        
-        .file-upload-button, .file-upload-label {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            background-color: #2196F3;
+        .file-input {
+            display: none;
+        }
+        .file-upload-button {
+            padding: 8px 12px;
+            background: #2196F3;
             color: white;
-            padding: 8px 15px;
             border-radius: 4px;
             cursor: pointer;
-            transition: background-color 0.3s;
+            display: inline-flex;
+            align-items: center;
             font-size: 14px;
         }
-        
-        .file-upload-button:hover, .file-upload-label:hover {
-            background-color: #0b7dda;
+        .file-upload-button:hover {
+            background: #0b7dda;
         }
-        
-        .file-input {
-            position: absolute;
-            width: 1px;
-            height: 1px;
-            padding: 0;
-            margin: -1px;
-            overflow: hidden;
-            clip: rect(0, 0, 0, 0);
-            border: 0;
-        }
-        
         .upload-icon {
-            font-size: 18px;
+            margin-right: 8px;
         }
-        
         .upload-help {
             color: #666;
             font-size: 13px;
-            font-style: italic;
+            margin-left: 10px;
         }
         
-        /* Image Gallery Styling */
+        /* Existing Images Styling */
         .image-gallery {
-            display: flex;
-            flex-wrap: wrap;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
             gap: 15px;
             margin-top: 10px;
         }
-        
         .image-item {
-            width: calc(33.333% - 10px);
             border: 1px solid #ddd;
             border-radius: 4px;
             overflow: hidden;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            position: relative;
         }
-        
-        .thumbnail {
+        .image-item img {
             width: 100%;
             height: 150px;
             object-fit: cover;
             display: block;
         }
-        
-        .image-details {
-            padding: 10px;
-            background-color: #f9f9f9;
+        .image-controls {
+            padding: 8px;
+            background: #f5f5f5;
         }
-        
-        .image-info {
-            margin-bottom: 8px;
+        .caption-field {
+            margin-top: 8px;
         }
-        
-        .image-name {
-            display: block;
-            font-weight: bold;
-            font-size: 13px;
-            margin-bottom: 5px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        
-        .image-caption {
+        .caption-field input {
             width: 100%;
             padding: 5px;
-            font-size: 13px;
-            border: 1px solid #ddd;
-            border-radius: 3px;
-        }
-        
-        .image-actions {
-            display: flex;
-            justify-content: flex-end;
-        }
-        
-        .delete-image-form {
-            margin: 0;
-        }
-        
-        .danger.small {
-            padding: 3px 8px;
             font-size: 12px;
+            border: 1px solid #ddd;
         }
         
-        @media (max-width: 768px) {
-            .image-item {
-                width: calc(50% - 8px);
-            }
+        /* Fish sightings styling */
+        .fish-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .fish-table th, .fish-table td {
+            padding: 8px;
+            border-bottom: 1px solid #ddd;
+            text-align: left;
+        }
+        .fish-table th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        .fish-thumbnail {
+            width: 30px;
+            height: 30px;
+            object-fit: cover;
+            border-radius: 4px;
+        }
+        .fish-thumbnail-placeholder {
+            width: 30px;
+            height: 30px;
+            background-color: #eee;
+            border-radius: 4px;
+        }
+        .scientific-name {
+            font-style: italic;
+            font-size: 12px;
+            color: #666;
+        }
+        .add-fish-form {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        .fish-form {
+            margin-top: 15px;
+        }
+        .manage-fish-link {
+            margin-top: 10px;
+            font-size: 13px;
+            font-style: italic;
+        }
+        .form-buttons {
+            margin-top: 30px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .delete-form {
+            margin-left: auto;
         }
         
-        @media (max-width: 480px) {
-            .image-item {
-                width: 100%;
-            }
+        /* Tab styling */
+        .tab-container {
+            margin-bottom: 20px;
+        }
+        .tab-buttons {
+            display: flex;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 15px;
+        }
+        .tab-button {
+            padding: 8px 16px;
+            background: #f1f1f1;
+            border: 1px solid #ddd;
+            border-bottom: none;
+            border-radius: 4px 4px 0 0;
+            margin-right: 5px;
+            cursor: pointer;
+        }
+        .tab-button.active {
+            background: #fff;
+            border-bottom: 1px solid #fff;
+            margin-bottom: -1px;
+            font-weight: bold;
+        }
+        .tab-content {
+            display: none;
+            padding: 15px;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+        }
+        .tab-content.active {
+            display: block;
         }
     </style>
     <script>
@@ -943,6 +1203,39 @@ function getDiveImages($divelogId) {
                 toggleBtn.textContent = 'Show';
             }
         }
+        
+        // Tab functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const tabContents = document.querySelectorAll('.tab-content');
+            
+            tabButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const tabName = this.getAttribute('data-tab');
+                    
+                    // Remove active class from all buttons and content
+                    tabButtons.forEach(btn => btn.classList.remove('active'));
+                    tabContents.forEach(content => content.classList.remove('active'));
+                    
+                    // Add active class to current button and content
+                    this.classList.add('active');
+                    document.getElementById(tabName + '-tab').classList.add('active');
+                });
+            });
+            
+            // File input display count
+            document.getElementById('dive-photos-input').addEventListener('change', function() {
+                const fileCount = this.files.length;
+                document.getElementById('dive-photos-count').textContent = 
+                    fileCount > 0 ? `${fileCount} file${fileCount > 1 ? 's' : ''} selected` : 'No files selected';
+            });
+            
+            document.getElementById('logbook-pages-input').addEventListener('change', function() {
+                const fileCount = this.files.length;
+                document.getElementById('logbook-pages-count').textContent = 
+                    fileCount > 0 ? `${fileCount} file${fileCount > 1 ? 's' : ''} selected` : 'No files selected';
+            });
+        });
     </script>
 </head>
 <body>
@@ -1158,27 +1451,30 @@ function getDiveImages($divelogId) {
         <?php endif; ?>
     </div>
 
-    <?php if ($editEntry): ?>
+    <?php if (isset($editEntry)): ?>
     <div class="container">
         <h2>Edit Dive Log Entry</h2>
-        <form method="post" id="editForm" enctype="multipart/form-data">
+        <form method="post" enctype="multipart/form-data">
             <input type="hidden" name="action" value="update_entry">
             <input type="hidden" name="id" value="<?php echo $editEntry['id']; ?>">
             
             <div class="form-group">
                 <label for="location">Location:</label>
                 <input type="text" id="location" name="location" value="<?php echo htmlspecialchars($editEntry['location']); ?>" required>
-                <button type="button" onclick="geocodeEditLocation()" class="btn edit" style="margin-top: 5px;">Geocode This Location</button>
             </div>
             
-            <div class="form-group">
-                <label for="latitude">Latitude:</label>
-                <input type="number" id="latitude" name="latitude" step="any" value="<?php echo $editEntry['latitude']; ?>" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="longitude">Longitude:</label>
-                <input type="number" id="longitude" name="longitude" step="any" value="<?php echo $editEntry['longitude']; ?>" required>
+            <div class="form-row-container">
+                <div class="form-row">
+                    <div class="form-group half">
+                        <label for="latitude">Latitude:</label>
+                        <input type="number" id="latitude" name="latitude" step="any" value="<?php echo $editEntry['latitude']; ?>" required>
+                    </div>
+                    
+                    <div class="form-group half">
+                        <label for="longitude">Longitude:</label>
+                        <input type="number" id="longitude" name="longitude" step="any" value="<?php echo $editEntry['longitude']; ?>" required>
+                    </div>
+                </div>
             </div>
             
             <div class="form-group">
@@ -1186,15 +1482,20 @@ function getDiveImages($divelogId) {
                 <input type="date" id="date" name="date" value="<?php echo $editEntry['date']; ?>" required>
             </div>
             
+            <div class="form-group">
+                <label for="description">Description:</label>
+                <textarea id="description" name="description"><?php echo htmlspecialchars($editEntry['description']); ?></textarea>
+            </div>
+            
             <div class="form-row-container">
                 <div class="form-row">
                     <div class="form-group half">
-                        <label for="depth">Maximum Depth (meters):</label>
+                        <label for="depth">Maximum Depth (m):</label>
                         <input type="number" id="depth" name="depth" step="0.1" min="0" value="<?php echo $editEntry['depth']; ?>">
                     </div>
                     
                     <div class="form-group half">
-                        <label for="duration">Dive Time (minutes):</label>
+                        <label for="duration">Duration (min):</label>
                         <input type="number" id="duration" name="duration" min="0" value="<?php echo $editEntry['duration']; ?>">
                     </div>
                 </div>
@@ -1213,13 +1514,13 @@ function getDiveImages($divelogId) {
                 
                 <div class="form-row">
                     <div class="form-group half">
-                        <label for="visibility">Visibility (meters):</label>
+                        <label for="visibility">Visibility (m):</label>
                         <input type="number" id="visibility" name="visibility" min="0" value="<?php echo $editEntry['visibility']; ?>">
                     </div>
                     
                     <div class="form-group half">
-                        <label for="buddy">Dive Partner:</label>
-                        <input type="text" id="buddy" name="buddy" value="<?php echo htmlspecialchars($editEntry['buddy'] ?? ''); ?>">
+                        <label for="buddy">Dive Partner/Buddy:</label>
+                        <input type="text" id="buddy" name="buddy" value="<?php echo htmlspecialchars($editEntry['buddy']); ?>">
                     </div>
                 </div>
                 
@@ -1227,123 +1528,216 @@ function getDiveImages($divelogId) {
                     <div class="form-group half">
                         <label for="dive_site_type">Dive Site Type:</label>
                         <select id="dive_site_type" name="dive_site_type">
-                            <option value="">Select Type</option>
-                            <option value="Reef" <?php echo ($editEntry['dive_site_type'] == 'Reef') ? 'selected' : ''; ?>>Reef</option>
-                            <option value="Wall" <?php echo ($editEntry['dive_site_type'] == 'Wall') ? 'selected' : ''; ?>>Wall</option>
-                            <option value="Wreck" <?php echo ($editEntry['dive_site_type'] == 'Wreck') ? 'selected' : ''; ?>>Wreck</option>
-                            <option value="Cave" <?php echo ($editEntry['dive_site_type'] == 'Cave') ? 'selected' : ''; ?>>Cave</option>
-                            <option value="Shore" <?php echo ($editEntry['dive_site_type'] == 'Shore') ? 'selected' : ''; ?>>Shore</option>
-                            <option value="Lake" <?php echo ($editEntry['dive_site_type'] == 'Lake') ? 'selected' : ''; ?>>Lake</option>
-                            <option value="River" <?php echo ($editEntry['dive_site_type'] == 'River') ? 'selected' : ''; ?>>River</option>
-                            <option value="Other" <?php echo ($editEntry['dive_site_type'] == 'Other') ? 'selected' : ''; ?>>Other</option>
+                            <option value="">-- Select --</option>
+                            <?php 
+                            $siteTypes = ['Reef', 'Wall', 'Wreck', 'Cave', 'Drift', 'Shore', 'Deep', 'Muck', 'Night', 'Other'];
+                            foreach ($siteTypes as $type) {
+                                $selected = ($editEntry['dive_site_type'] == $type) ? 'selected' : '';
+                                echo "<option value=\"$type\" $selected>$type</option>";
+                            }
+                            ?>
                         </select>
                     </div>
                     
                     <div class="form-group half">
-                        <label for="rating">Rating:</label>
+                        <label for="rating">Rating (1-5):</label>
                         <select id="rating" name="rating">
-                            <option value="">Select Rating</option>
-                            <option value="1" <?php echo ($editEntry['rating'] == 1) ? 'selected' : ''; ?>>★</option>
-                            <option value="2" <?php echo ($editEntry['rating'] == 2) ? 'selected' : ''; ?>>★★</option>
-                            <option value="3" <?php echo ($editEntry['rating'] == 3) ? 'selected' : ''; ?>>★★★</option>
-                            <option value="4" <?php echo ($editEntry['rating'] == 4) ? 'selected' : ''; ?>>★★★★</option>
-                            <option value="5" <?php echo ($editEntry['rating'] == 5) ? 'selected' : ''; ?>>★★★★★</option>
+                            <option value="">-- Select --</option>
+                            <?php for ($i = 1; $i <= 5; $i++): ?>
+                                <option value="<?php echo $i; ?>" <?php if ($editEntry['rating'] == $i) echo 'selected'; ?>><?php echo str_repeat('★', $i); ?></option>
+                            <?php endfor; ?>
                         </select>
                     </div>
                 </div>
             </div>
             
             <div class="form-group">
-                <label for="description">Description:</label>
-                <textarea id="description" name="description" required><?php echo htmlspecialchars($editEntry['description']); ?></textarea>
-            </div>
-            
-            <div class="form-group">
-                <label for="comments">Additional Comments:</label>
-                <textarea id="comments" name="comments"><?php echo htmlspecialchars($editEntry['comments'] ?? ''); ?></textarea>
+                <label for="comments">Comments/Notes:</label>
+                <textarea id="comments" name="comments"><?php echo htmlspecialchars($editEntry['comments']); ?></textarea>
             </div>
             
             <!-- Image Upload Section -->
-            <div class="form-group">
-                <label>Upload Images:</label>
-                <div class="image-upload-container">
-                    <label class="file-upload-button">
-                        <span class="upload-icon">📷</span> Select Images
-                        <input type="file" name="dive_images[]" multiple accept="image/*" class="file-input">
-                    </label>
-                    <span class="upload-help">You can select multiple images. Max 5MB each. JPG, PNG, GIF, and WEBP formats only.</span>
+            <div class="section-title">Media</div>
+            <div class="tab-container">
+                <div class="tab-buttons">
+                    <button type="button" class="tab-button active" data-tab="dive-photos">Dive Photos</button>
+                    <button type="button" class="tab-button" data-tab="logbook">Logbook Pages</button>
+                </div>
+                
+                <div class="tab-content active" id="dive-photos-tab">
+                    <h4>Dive Photos</h4>
+                    <div class="image-upload-container">
+                        <label for="dive-photos-input" class="file-upload-button">
+                            <span class="upload-icon">📷</span> Select Dive Photos
+                        </label>
+                        <input type="file" name="images[]" id="dive-photos-input" class="file-input" multiple accept="image/jpeg,image/png,image/gif">
+                        <span class="selected-files-count" id="dive-photos-count">No files selected</span>
+                        <span class="upload-help">JPG, PNG or GIF (max. 5MB each)</span>
+                    </div>
+                    
+                    <?php if (!empty($diveImages) && $editMode): ?>
+                    <div class="image-gallery">
+                        <?php foreach ($diveImages as $image): ?>
+                            <?php if($image['type'] == 'dive_photo'): ?>
+                            <div class="image-item">
+                                <img src="uploads/diveimages/<?php echo htmlspecialchars($image['filename']); ?>" alt="Dive photo">
+                                <div class="image-controls">
+                                    <div class="caption-field">
+                                        <input type="text" name="image_caption[<?php echo $image['id']; ?>]" placeholder="Add caption" value="<?php echo htmlspecialchars($image['caption'] ?? ''); ?>">
+                                    </div>
+                                    <button type="button" class="delete-image-btn" data-image-id="<?php echo $image['id']; ?>">Delete</button>
+                                </div>
+                            </div>
+                            <?php endif; ?>
+                        <?php endforeach; ?>
+                    </div>
+                    <?php endif; ?>
+                </div>
+                
+                <div class="tab-content" id="logbook-tab">
+                    <h4>Logbook Pages</h4>
+                    <div class="image-upload-container">
+                        <label for="logbook-pages-input" class="file-upload-button">
+                            <span class="upload-icon">📄</span> Select Logbook Pages
+                        </label>
+                        <input type="file" name="logbook_images[]" id="logbook-pages-input" class="file-input" multiple accept="image/jpeg,image/png,image/gif">
+                        <span class="selected-files-count" id="logbook-pages-count">No files selected</span>
+                        <span class="upload-help">JPG, PNG or GIF (max. 5MB each)</span>
+                    </div>
+                    
+                    <?php if (!empty($diveImages) && $editMode): ?>
+                    <div class="image-gallery">
+                        <?php foreach ($diveImages as $image): ?>
+                            <?php if($image['type'] == 'logbook_page'): ?>
+                            <div class="image-item">
+                                <img src="uploads/diveimages/<?php echo htmlspecialchars($image['filename']); ?>" alt="Logbook page">
+                                <div class="image-controls">
+                                    <div class="caption-field">
+                                        <input type="text" name="image_caption[<?php echo $image['id']; ?>]" placeholder="Add caption" value="<?php echo htmlspecialchars($image['caption'] ?? ''); ?>">
+                                    </div>
+                                    <button type="button" class="delete-image-btn" data-image-id="<?php echo $image['id']; ?>">Delete</button>
+                                </div>
+                            </div>
+                            <?php endif; ?>
+                        <?php endforeach; ?>
+                    </div>
+                    <?php endif; ?>
                 </div>
             </div>
             
-            <!-- Existing Images Section -->
-            <?php if (!empty($diveImages)): ?>
+            <!-- Fish Sightings Section -->
             <div class="form-group">
-                <label>Existing Images:</label>
-                <div class="image-gallery">
-                    <?php foreach ($diveImages as $image): ?>
-                    <div class="image-item">
-                        <img src="uploads/diveimages/<?php echo htmlspecialchars($image['filename']); ?>" alt="Dive Image" class="thumbnail">
-                        <div class="image-details">
-                            <div class="image-info">
-                                <span class="image-name" title="<?php echo htmlspecialchars($image['original_filename']); ?>">
-                                    <?php echo htmlspecialchars(substr($image['original_filename'], 0, 20) . (strlen($image['original_filename']) > 20 ? '...' : '')); ?>
-                                </span>
-                                <input type="text" name="image_captions[<?php echo $image['id']; ?>]" 
-                                    placeholder="Add caption" 
-                                    value="<?php echo htmlspecialchars($image['caption'] ?? ''); ?>" 
-                                    class="image-caption">
+                <h3>Fish Sightings</h3>
+                
+                <?php if (!empty($diveFishSightings)): ?>
+                    <div class="fish-sightings-list">
+                        <table class="fish-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 30px;"></th>
+                                    <th>Fish Species</th>
+                                    <th>Date</th>
+                                    <th>Quantity</th>
+                                    <th>Notes</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($diveFishSightings as $sighting): ?>
+                                    <tr>
+                                        <td>
+                                            <?php if ($sighting['fish_image']): ?>
+                                                <img src="uploads/fishimages/<?php echo $sighting['fish_image']; ?>" alt="<?php echo htmlspecialchars($sighting['common_name']); ?>" class="fish-thumbnail">
+                                            <?php else: ?>
+                                                <div class="fish-thumbnail-placeholder"></div>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <strong><?php echo htmlspecialchars($sighting['common_name']); ?></strong>
+                                            <?php if ($sighting['scientific_name']): ?>
+                                                <div class="scientific-name"><?php echo htmlspecialchars($sighting['scientific_name']); ?></div>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td><?php echo date('M d, Y', strtotime($sighting['sighting_date'])); ?></td>
+                                        <td><?php echo ucfirst(htmlspecialchars($sighting['quantity'] ?? 'N/A')); ?></td>
+                                        <td><?php echo htmlspecialchars($sighting['notes'] ?? ''); ?></td>
+                                        <td>
+                                            <form method="post" onsubmit="return confirm('Are you sure you want to remove this fish sighting?');">
+                                                <input type="hidden" name="action" value="delete_fish_sighting">
+                                                <input type="hidden" name="sighting_id" value="<?php echo $sighting['sighting_id']; ?>">
+                                                <input type="hidden" name="divelog_id" value="<?php echo $editEntry['id']; ?>">
+                                                <button type="submit" class="danger">Remove</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php else: ?>
+                    <p>No fish sightings recorded for this dive.</p>
+                <?php endif; ?>
+                
+                <div class="add-fish-form">
+                    <h4>Add New Fish Sighting</h4>
+                    <form method="post" class="fish-form">
+                        <input type="hidden" name="action" value="add_fish_sighting">
+                        <input type="hidden" name="divelog_id" value="<?php echo $editEntry['id']; ?>">
+                        <input type="hidden" name="sighting_date" value="<?php echo $editEntry['date']; ?>">
+                        
+                        <div class="form-row">
+                            <div class="form-group half">
+                                <label for="fish_species_id">Fish Species:</label>
+                                <select id="fish_species_id" name="fish_species_id" required>
+                                    <option value="">-- Select Fish Species --</option>
+                                    <?php foreach ($allFishSpecies as $fish): ?>
+                                        <option value="<?php echo $fish['id']; ?>">
+                                            <?php echo htmlspecialchars($fish['common_name']); ?> 
+                                            <?php if (!empty($fish['scientific_name'])): ?>
+                                                (<?php echo htmlspecialchars($fish['scientific_name']); ?>)
+                                            <?php endif; ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
                             </div>
-                            <div class="image-actions">
-                                <form method="post" onsubmit="return confirm('Are you sure you want to delete this image?');" class="delete-image-form">
-                                    <input type="hidden" name="action" value="delete_image">
-                                    <input type="hidden" name="image_id" value="<?php echo $image['id']; ?>">
-                                    <input type="hidden" name="divelog_id" value="<?php echo $editEntry['id']; ?>">
-                                    <button type="submit" class="danger small">Delete</button>
-                                </form>
+                            
+                            <div class="form-group half">
+                                <label for="quantity">Approximate Quantity:</label>
+                                <select id="quantity" name="quantity">
+                                    <option value="single">Single</option>
+                                    <option value="few">Few (2-5)</option>
+                                    <option value="many">Many (5-20)</option>
+                                    <option value="school">School (20+)</option>
+                                </select>
                             </div>
                         </div>
+                        
+                        <div class="form-group">
+                            <label for="notes">Notes:</label>
+                            <textarea id="notes" name="notes" rows="2"></textarea>
+                        </div>
+                        
+                        <button type="submit" class="btn">Add Fish Sighting</button>
+                    </form>
+                    
+                    <div class="manage-fish-link">
+                        <p>Can't find the fish you're looking for? <a href="fish_manager.php" target="_blank">Manage Fish Species</a></p>
                     </div>
-                    <?php endforeach; ?>
                 </div>
             </div>
-            <?php endif; ?>
             
-            <div id="geocodeMessage"></div>
-            
-            <button type="submit">Update Entry</button>
-            <a href="populate_db.php" class="btn">Cancel</a>
+            <div class="form-buttons">
+                <button type="submit" class="btn">Update Dive Log Entry</button>
+                <a href="populate_db.php" class="btn" style="background-color: #777;">Cancel</a>
+                
+                <form method="post" class="delete-form" style="display: inline-block;" onsubmit="return confirm('Are you sure you want to delete this dive log entry? This cannot be undone.');">
+                    <input type="hidden" name="action" value="delete_entry">
+                    <input type="hidden" name="id" value="<?php echo $editEntry['id']; ?>">
+                    <button type="submit" class="danger">Delete Entry</button>
+                </form>
+            </div>
         </form>
     </div>
-    <script>
-        async function geocodeEditLocation() {
-            const locationInput = document.getElementById('location');
-            const latInput = document.getElementById('latitude');
-            const longInput = document.getElementById('longitude');
-            const messageDiv = document.getElementById('geocodeMessage');
-            
-            if (!locationInput.value) {
-                messageDiv.innerHTML = '<div class="error">Please enter a location first.</div>';
-                return;
-            }
-            
-            messageDiv.innerHTML = '<div class="info">Geocoding location...</div>';
-            
-            try {
-                const response = await fetch('?action=geocode_ajax&address=' + encodeURIComponent(locationInput.value));
-                const data = await response.json();
-                
-                if (data.success) {
-                    latInput.value = data.latitude;
-                    longInput.value = data.longitude;
-                    messageDiv.innerHTML = '<div class="success">Successfully geocoded: ' + data.latitude + ', ' + data.longitude + '</div>';
-                } else {
-                    messageDiv.innerHTML = '<div class="error">Could not geocode location. Please enter coordinates manually.</div>';
-                }
-            } catch (error) {
-                messageDiv.innerHTML = '<div class="error">Error geocoding location: ' + error.message + '</div>';
-            }
-        }
-    </script>
     <?php endif; ?>
 </body>
 </html>
