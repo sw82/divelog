@@ -45,9 +45,41 @@ function getFishSightings($divelogId) {
     return $sightings;
 }
 
-// Fetch dive logs from the database - only diving activities for statistics
-$query = "SELECT * FROM divelogs WHERE activity_type = 'diving' OR activity_type IS NULL";
-$result = $conn->query($query);
+// Initialize search variables
+$searchTerm = '';
+$searchResults = false;
+
+// Handle search request
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search'])) {
+    $searchTerm = trim($_GET['search']);
+    $searchResults = true;
+}
+
+// Fetch all dive logs from the database
+$query = "SELECT * FROM divelogs";
+$params = [];
+$types = "";
+
+// Add search criteria if search term is provided
+if (!empty($searchTerm)) {
+    $query .= " WHERE location LIKE ? OR description LIKE ? OR dive_site_type LIKE ? OR buddy LIKE ?";
+    $searchParam = "%$searchTerm%";
+    $params = [$searchParam, $searchParam, $searchParam, $searchParam];
+    $types = "ssss";
+}
+
+// Add order by date for consistent display
+$query .= " ORDER BY date DESC";
+
+// Prepare and execute the query with or without search parameters
+if (!empty($params)) {
+    $stmt = $conn->prepare($query);
+    $stmt->bind_param($types, ...$params);
+    $stmt->execute();
+    $result = $stmt->get_result();
+} else {
+    $result = $conn->query($query);
+}
 
 // Prepare data for JavaScript
 $diveLogsData = [];
@@ -57,9 +89,18 @@ $latestDive = null;
 $deepestDive = null;
 
 if ($result && $result->num_rows > 0) {
-    $totalDives = $result->num_rows;
+    // Count the diving activities (not snorkeling)
+    $divingCount = 0;
+    $snorkelingCount = 0;
     
     while ($row = $result->fetch_assoc()) {
+        // Track activity type counts
+        if ($row['activity_type'] === 'snorkeling') {
+            $snorkelingCount++;
+        } else {
+            $divingCount++;
+        }
+        
         // Get images for this dive
         $diveImages = getDiveImages($row['id']);
         
@@ -100,75 +141,22 @@ if ($result && $result->num_rows > 0) {
             $years[] = $year;
         }
         
-        // Track latest dive
-        if ($latestDive === null || $row['date'] > $latestDive['date']) {
-            $latestDive = $row;
-        }
-        
-        // Track deepest dive
-        if (!empty($row['depth']) && ($deepestDive === null || $row['depth'] > $deepestDive['depth'])) {
-            $deepestDive = $row;
-        }
-    }
-}
-
-// Now fetch all activities (including snorkeling) for display in map
-$allActivitiesQuery = "SELECT * FROM divelogs";
-$allResult = $conn->query($allActivitiesQuery);
-
-if ($allResult && $allResult->num_rows > 0) {
-    while ($row = $allResult->fetch_assoc()) {
-        // Skip if this is already in diveLogsData (it's a dive)
-        $isDive = false;
-        foreach ($diveLogsData as $dive) {
-            if ($dive['id'] == $row['id']) {
-                $isDive = true;
-                break;
+        // Check if it's a dive (not snorkeling) for dive-specific statistics
+        if ($row['activity_type'] !== 'snorkeling') {
+            // Track latest dive
+            if ($latestDive === null || $row['date'] > $latestDive['date']) {
+                $latestDive = $row;
             }
-        }
-        
-        if (!$isDive) {
-            // Get images for this activity
-            $activityImages = getDiveImages($row['id']);
             
-            // Get fish sightings for this activity
-            $fishSightings = getFishSightings($row['id']);
-            
-            $diveLogsData[] = [
-                'id' => $row['id'],
-                'location' => $row['location'],
-                'latitude' => $row['latitude'],
-                'longitude' => $row['longitude'],
-                'date' => $row['date'],
-                'description' => $row['description'],
-                'year' => substr($row['date'], 0, 4), // Extract year from date
-                'depth' => $row['depth'],
-                'duration' => $row['duration'],
-                'temperature' => $row['temperature'],
-                'air_temperature' => $row['air_temperature'],
-                'visibility' => $row['visibility'],
-                'buddy' => $row['buddy'],
-                'dive_site_type' => $row['dive_site_type'],
-                'rating' => $row['rating'],
-                'comments' => $row['comments'],
-                'activity_type' => $row['activity_type'],
-                'images' => array_map(function($img) {
-                    return [
-                        'id' => $img['id'],
-                        'filename' => $img['filename'],
-                        'caption' => $img['caption']
-                    ];
-                }, $activityImages),
-                'fish_sightings' => $fishSightings
-            ];
-            
-            // Collect unique years for filter
-            $year = substr($row['date'], 0, 4);
-            if (!in_array($year, $years)) {
-                $years[] = $year;
+            // Track deepest dive
+            if (!empty($row['depth']) && ($deepestDive === null || $row['depth'] > $deepestDive['depth'])) {
+                $deepestDive = $row;
             }
         }
     }
+    
+    // Set total dives count
+    $totalDives = $divingCount;
 }
 
 // Convert latitude and longitude to floats for proper handling
@@ -193,6 +181,10 @@ rsort($years);
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <!-- Add MarkerCluster CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
         .fish-sightings-container {
             margin-top: 15px;
@@ -293,6 +285,125 @@ rsort($years);
             align-items: center;
             justify-content: center;
         }
+        
+        /* Search Form */
+        .search-form {
+            margin-bottom: 15px;
+            display: flex;
+            max-width: 500px;
+            margin: 0 auto 15px;
+        }
+        
+        .search-form input {
+            flex-grow: 1;
+            border: 1px solid #ddd;
+            border-radius: 4px 0 0 4px;
+            padding: 8px 12px;
+            font-size: 14px;
+        }
+        
+        .search-form button {
+            background-color: #2196F3;
+            border: none;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 0 4px 4px 0;
+            cursor: pointer;
+        }
+        
+        .search-results {
+            margin-bottom: 15px;
+            padding: 8px 15px;
+            background-color: #f5f5f5;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 14px;
+        }
+        
+        .search-results-count {
+            font-weight: bold;
+            color: #2196F3;
+        }
+        
+        .clear-search {
+            color: #f44336;
+            text-decoration: none;
+            margin-left: 10px;
+        }
+        
+        /* Marker Cluster Custom Styles */
+        .custom-cluster-icon {
+            background: none;
+        }
+        
+        .cluster-icon {
+            background-color: #4363d8;
+            width: 36px;
+            height: 36px;
+            border-radius: 18px;
+            border: 3px solid white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+            color: white;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.3);
+        }
+        
+        /* Override Leaflet MarkerCluster Default Styles */
+        .marker-cluster-small,
+        .marker-cluster-medium,
+        .marker-cluster-large {
+            background-color: rgba(67, 99, 216, 0.2) !important;
+        }
+        
+        .marker-cluster-small div,
+        .marker-cluster-medium div,
+        .marker-cluster-large div {
+            background-color: #4363d8 !important;
+            color: white !important;
+            font-weight: bold !important;
+            border: 3px solid white !important;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.3) !important;
+        }
+        
+        /* Cluster Popup Styles */
+        .cluster-popup-container {
+            margin-bottom: 30px;
+        }
+        
+        .cluster-popup h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 16px;
+            color: #333;
+        }
+        
+        .cluster-popup p {
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        
+        .locations-list {
+            margin: 0;
+            padding-left: 20px;
+            margin-bottom: 15px;
+        }
+        
+        .locations-list li {
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+        
+        .cluster-note {
+            font-style: italic;
+            color: #666;
+            font-size: 12px !important;
+            text-align: center;
+            border-top: 1px solid #eee;
+            padding-top: 8px;
+        }
     </style>
 </head>
 <body>
@@ -300,40 +411,43 @@ rsort($years);
     <div class="container-fluid">
         <h1 class="text-center my-3">Dive Log</h1>
         
-        <div class="stats-container row">
-            <div class="col-6 col-md-3 mb-3">
-                <div class="stat-box">
-                    <h3>Total Dives</h3>
-                    <p class="stat-value"><?php echo $totalDives; ?></p>
-                    <p class="stat-note">(Snorkeling not included)</p>
-                </div>
+        <!-- Search Form -->
+        <form method="GET" action="" class="search-form">
+            <input 
+                type="text" 
+                name="search" 
+                placeholder="Search for location, dive site, buddy..." 
+                value="<?php echo htmlspecialchars($searchTerm); ?>"
+            >
+            <button type="submit"><i class="fas fa-search"></i></button>
+        </form>
+        
+        <?php if ($searchResults): ?>
+        <div class="search-results">
+            Found <span class="search-results-count"><?php echo count($diveLogsData); ?></span> 
+            dive log entries for "<?php echo htmlspecialchars($searchTerm); ?>"
+            <a href="index.php" class="clear-search"><i class="fas fa-times"></i> Clear</a>
+        </div>
+        <?php endif; ?>
+        
+        <div class="stats-container row justify-content-center">
+            <div class="col-4 col-md-3 mb-2">
+                <a href="divelist.php" class="stat-link">
+                    <div class="stat-box">
+                        <h3>Dives</h3>
+                        <p class="stat-value"><?php echo $totalDives; ?></p>
+                    </div>
+                </a>
             </div>
             <?php if ($latestDive): ?>
-            <div class="col-6 col-md-3 mb-3">
+            <div class="col-5 col-md-4 mb-2">
                 <div class="stat-box">
-                    <h3>Latest Dive</h3>
-                    <p class="stat-value"><?php echo date('M d, Y', strtotime($latestDive['date'])); ?></p>
+                    <h3>Latest</h3>
+                    <p class="stat-value"><?php echo date('d M', strtotime($latestDive['date'])); ?></p>
                     <p class="stat-location"><?php echo htmlspecialchars($latestDive['location']); ?></p>
-                    <p class="stat-note">(Diving only)</p>
                 </div>
             </div>
             <?php endif; ?>
-            <?php if ($deepestDive && !empty($deepestDive['depth'])): ?>
-            <div class="col-6 col-md-3 mb-3">
-                <div class="stat-box">
-                    <h3>Deepest Dive</h3>
-                    <p class="stat-value"><?php echo $deepestDive['depth']; ?> m</p>
-                    <p class="stat-location"><?php echo htmlspecialchars($deepestDive['location']); ?></p>
-                </div>
-            </div>
-            <?php endif; ?>
-            <div class="col-6 col-md-3 mb-3">
-                <div class="stat-box">
-                    <h3>Dive Locations</h3>
-                    <p class="stat-value"><?php echo count(array_unique(array_column($diveLogsData, 'location'))); ?></p>
-                    <p class="stat-note">(Diving only)</p>
-                </div>
-            </div>
         </div>
         
         <div class="filter-container">
@@ -347,6 +461,10 @@ rsort($years);
         </div>
         
         <div id="map"></div>
+        
+        <div class="text-center mt-4 mb-4">
+            <h3>All Dive Log Entries (<?php echo count($diveLogsData); ?>)</h3>
+        </div>
     </div>
     
     <!-- Bootstrap JS -->
@@ -357,6 +475,7 @@ rsort($years);
         console.log("Loaded " + diveLogsData.length + " dive log entries");
     </script>
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
     <script src="script.js"></script>
 </body>
 </html> 

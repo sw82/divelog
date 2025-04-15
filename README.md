@@ -18,7 +18,7 @@ Done with Vibe Coding.
 - [x] make edit and add fish when creating or editing a dive entry
 - [x] create a smart way to add my old log book. it is all pictures atm.
 - [x] download multiple dives at once as csv with all values
-- [ ] search for a specific location (all three fields) or divepoint
+- [x] search for a specific location (all three fields) or divepoint
 - [ ] backup your data to google drive
 - [x] next to diving add snorkeling as option in the database as well in the interfaces.
 - [x] if there are many dive spots at one location/zoom level add a number and once you click it offer a selection.
@@ -28,6 +28,16 @@ Done with Vibe Coding.
 - [x] check all sub pages if the menu and navigation is right and the hierachy. I see different menues in different subpages. normalize this
 - [x] check if the export csv function is still correct and according to the latest database style.
 - [x] write a csv importer. check if the entry exists before
+- [x] when clicking on "Drag & drop your CSV file here or click to browse" choose file I can select it in the Finder, but it will not be upolao0ded. But it works once I drag and drop it. so please check the upload functionality.
+- [x] improve marker clustering for better visibility when zoomed out
+
+## Recent Changes
+
+- **Enhanced Map Clustering**: Implemented Leaflet.markercluster for superior marker clustering
+  - Dynamic clustering based on zoom level
+  - Interactive cluster markers with summary popups
+  - Improved performance for maps with many dive locations
+  - Custom-styled clusters matching the application theme
 
 ## Project Changes
 
@@ -50,7 +60,11 @@ This project has undergone a major restructuring:
 
 ## Features
 
-- **Interactive Map**: View all dive locations on a map with detailed popups
+- **Interactive Map**: 
+  - View all dive locations on a map with detailed popups
+  - Advanced marker clustering for better visualization of dive sites
+  - Intelligent grouping of nearby dive locations
+  - Interactive cluster popups showing location summaries
 - **Dive Log Management**: Add, edit, and delete dive entries with detailed information
 - **Image Management**: Upload and manage dive images
 - **Fish Species Tracking**: Record and manage fish species with images
