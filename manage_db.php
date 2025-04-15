@@ -440,8 +440,9 @@ if (isset($_GET['action']) && $_GET['action'] === 'create_backup') {
         
         <div class="card">
             <h2>Import Data</h2>
-            <p>Import dive logs from your paper logbook using OCR technology.</p>
+            <p>Import dive logs from your paper logbook using OCR technology or from CSV files.</p>
             <a href="import.php" class="action-button">Import from Logbook</a>
+            <a href="import_csv.php" class="action-button">Import from CSV</a>
         </div>
     </div>
 </body>

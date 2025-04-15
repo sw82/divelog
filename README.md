@@ -27,6 +27,7 @@ Done with Vibe Coding.
 - [x] mobile first implementation. everything needs to be super responsive. if needed use the best framework for this.
 - [x] check all sub pages if the menu and navigation is right and the hierachy. I see different menues in different subpages. normalize this
 - [x] check if the export csv function is still correct and according to the latest database style.
+- [x] write a csv importer. check if the entry exists before
 
 ## Project Changes
 
