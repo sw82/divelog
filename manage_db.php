@@ -270,6 +270,138 @@ if (isset($_GET['action']) && $_GET['action'] === 'create_backup') {
     }
 }
 
+// Handle clear database request
+if (isset($_GET['action']) && $_GET['action'] === 'clear_db') {
+    // Only proceed if confirmation is given
+    if (isset($_GET['confirm']) && $_GET['confirm'] === 'yes') {
+        try {
+            // Start transaction
+            $conn->begin_transaction();
+            
+            // Delete data from all tables in the correct order to respect foreign key constraints
+            $tables = [
+                'fish_sightings',
+                'divelog_images',
+                'divelogs',
+                'fish_images',
+                'fish_species'
+            ];
+            
+            foreach ($tables as $table) {
+                $sql = "TRUNCATE TABLE $table";
+                if (!$conn->query($sql)) {
+                    throw new Exception("Error clearing table $table: " . $conn->error);
+                }
+            }
+            
+            // Commit transaction
+            $conn->commit();
+            output("All data has been cleared from the database.");
+        } catch (Exception $e) {
+            // Rollback on error
+            $conn->rollback();
+            outputError("Database operation failed: " . $e->getMessage());
+        }
+    }
+}
+
+// Handle populate with sample data request
+if (isset($_GET['action']) && $_GET['action'] === 'populate_sample') {
+    try {
+        // Start transaction
+        $conn->begin_transaction();
+        
+        // 1. Add sample fish species
+        $fishSpecies = [
+            ['Clownfish', 'Amphiprion ocellaris', 'A small bright orange fish with white stripes'],
+            ['Blue Tang', 'Paracanthurus hepatus', 'A bright blue surgeonfish with black markings'],
+            ['Moorish Idol', 'Zanclus cornutus', 'Distinguished by its white, yellow and black coloration'],
+            ['Parrotfish', 'Scarus psittacus', 'Known for its bright colors and beak-like mouth'],
+            ['Manta Ray', 'Manta birostris', 'Large rays with triangular pectoral fins']
+        ];
+        
+        $fishIds = [];
+        $stmt = $conn->prepare("INSERT INTO fish_species (common_name, scientific_name, description) VALUES (?, ?, ?)");
+        $stmt->bind_param("sss", $commonName, $scientificName, $description);
+        
+        foreach ($fishSpecies as $fish) {
+            $commonName = $fish[0];
+            $scientificName = $fish[1];
+            $description = $fish[2];
+            $stmt->execute();
+            $fishIds[] = $conn->insert_id;
+        }
+        $stmt->close();
+        
+        // 2. Add sample dive locations
+        $diveLocations = [
+            ['Great Barrier Reef', -16.7551, 145.9023, '2023-06-15', 'Beautiful coral formations with diverse marine life', 18.5, 45, 26, 29, 15, 'Sarah', 'Reef', 'diving', 5, 'Amazing visibility and vibrant coral colors'],
+            ['Bali Coral Garden', -8.6478, 115.1374, '2023-07-22', 'Colorful coral garden with many small fish', 12.3, 38, 28, 32, 20, 'Mike', 'Reef', 'diving', 4, 'Great spot for underwater photography'],
+            ['Florida Keys', 24.5557, -81.7826, '2023-05-10', 'Shallow reef with numerous fish species', 8.7, 55, 25, 30, 18, 'John', 'Reef', 'snorkeling', 4, 'Perfect for beginners'],
+            ['Cozumel Drift', 20.4230, -86.9223, '2023-08-05', 'Fast drift dive along vibrant wall', 22.1, 42, 27, 31, 25, 'Lisa', 'Wall', 'diving', 5, 'Exhilarating current and great visibility']
+        ];
+        
+        $diveIds = [];
+        $stmt = $conn->prepare("INSERT INTO divelogs (location, latitude, longitude, date, description, depth, duration, temperature, air_temperature, visibility, buddy, dive_site_type, activity_type, rating, comments) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("sddssddddssssss", $location, $latitude, $longitude, $date, $description, $depth, $duration, $temperature, $airTemp, $visibility, $buddy, $siteType, $activityType, $rating, $comments);
+        
+        foreach ($diveLocations as $dive) {
+            $location = $dive[0];
+            $latitude = $dive[1];
+            $longitude = $dive[2];
+            $date = $dive[3];
+            $description = $dive[4];
+            $depth = $dive[5];
+            $duration = $dive[6];
+            $temperature = $dive[7];
+            $airTemp = $dive[8];
+            $visibility = $dive[9];
+            $buddy = $dive[10];
+            $siteType = $dive[11];
+            $activityType = $dive[12];
+            $rating = $dive[13];
+            $comments = $dive[14];
+            $stmt->execute();
+            $diveIds[] = $conn->insert_id;
+        }
+        $stmt->close();
+        
+        // 3. Add fish sightings
+        $stmt = $conn->prepare("INSERT INTO fish_sightings (divelog_id, fish_species_id, sighting_date, quantity, notes) VALUES (?, ?, ?, ?, ?)");
+        $stmt->bind_param("iisss", $divelogId, $fishSpeciesId, $sightingDate, $quantity, $notes);
+        
+        // Random sightings for each dive
+        foreach ($diveIds as $diveId) {
+            // Get the date for this dive
+            $diveQuery = "SELECT date FROM divelogs WHERE id = $diveId";
+            $result = $conn->query($diveQuery);
+            $diveDate = $result->fetch_assoc()['date'];
+            
+            // Add 2-3 random fish sightings
+            $numSightings = rand(2, 3);
+            for ($i = 0; $i < $numSightings; $i++) {
+                $fishIndex = array_rand($fishIds);
+                $fishSpeciesId = $fishIds[$fishIndex];
+                $divelogId = $diveId;
+                $sightingDate = $diveDate;
+                $quantities = ['single', 'few', 'many', 'school'];
+                $quantity = $quantities[array_rand($quantities)];
+                $notes = "Observed during dive at " . rand(5, 20) . "m depth";
+                $stmt->execute();
+            }
+        }
+        $stmt->close();
+        
+        // Commit transaction
+        $conn->commit();
+        output("Sample data has been successfully added to the database.");
+    } catch (Exception $e) {
+        // Rollback on error
+        $conn->rollback();
+        outputError("Failed to add sample data: " . $e->getMessage());
+    }
+}
+
 ?>
 
 <!DOCTYPE html>
@@ -436,6 +568,13 @@ if (isset($_GET['action']) && $_GET['action'] === 'create_backup') {
             <h2>Export Data</h2>
             <p>Export your dive logs to CSV format for backup or analysis in spreadsheet software.</p>
             <a href="?action=export_csv" class="action-button">Export to CSV</a>
+        </div>
+        
+        <div class="card">
+            <h2>Database Operations</h2>
+            <p>Warning: These operations can result in permanent data loss. Use with caution.</p>
+            <a href="?action=clear_db&confirm=yes" class="action-button danger-button" onclick="return confirm('WARNING: This will delete ALL data from your database. This action cannot be undone unless you have a backup. Are you sure you want to continue?');">Clear All Data</a>
+            <a href="?action=populate_sample" class="action-button" onclick="return confirm('This will add sample data to your database. Continue?');">Populate with Sample Data</a>
         </div>
         
         <div class="card">
