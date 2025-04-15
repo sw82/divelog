@@ -437,6 +437,12 @@ if (isset($_GET['action']) && $_GET['action'] === 'create_backup') {
             <p>Export your dive logs to CSV format for backup or analysis in spreadsheet software.</p>
             <a href="?action=export_csv" class="action-button">Export to CSV</a>
         </div>
+        
+        <div class="card">
+            <h2>Import Data</h2>
+            <p>Import dive logs from your paper logbook using OCR technology.</p>
+            <a href="import.php" class="action-button">Import from Logbook</a>
+        </div>
     </div>
 </body>
 </html> 
