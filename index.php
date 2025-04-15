@@ -167,6 +167,15 @@ foreach ($diveLogsData as $index => $diveLog) {
 
 // Sort years in descending order
 rsort($years);
+
+// Count unique dive locations
+$uniqueLocations = [];
+foreach ($diveLogsData as $dive) {
+    if (!in_array($dive['location'], $uniqueLocations)) {
+        $uniqueLocations[] = $dive['location'];
+    }
+}
+$locationCount = count($uniqueLocations);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -404,67 +413,112 @@ rsort($years);
             border-top: 1px solid #eee;
             padding-top: 8px;
         }
+        
+        /* Improved Stats Section */
+        .stats-container {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin: 30px auto;
+            max-width: 1000px;
+        }
+        
+        .stat-box {
+            background-color: #fff;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            flex: 1;
+            min-width: 150px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            border-top: 4px solid #0277bd;
+        }
+        
+        .stat-box:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+        }
+        
+        .stat-link {
+            text-decoration: none;
+            color: inherit;
+            display: block;
+            height: 100%;
+        }
+        
+        .stat-box h3 {
+            margin: 0 0 10px 0;
+            font-size: 18px;
+            color: #555;
+            font-weight: 600;
+        }
+        
+        .stat-value {
+            font-size: 36px;
+            font-weight: bold;
+            margin: 10px 0;
+            color: #0277bd;
+        }
+        
+        .stat-location {
+            font-size: 14px;
+            margin: 5px 0 0 0;
+            color: #666;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        /* Updated Map Container */
+        #map {
+            width: 90%;
+            max-width: 1200px;
+            height: 650px;
+            margin: 20px auto 40px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
     </style>
 </head>
 <body>
     <?php include 'navigation.php'; ?>
     <div class="container-fluid">
-        <h1 class="text-center my-3">Dive Log</h1>
-        
-        <!-- Search Form -->
-        <form method="GET" action="" class="search-form">
-            <input 
-                type="text" 
-                name="search" 
-                placeholder="Search for location, dive site, buddy..." 
-                value="<?php echo htmlspecialchars($searchTerm); ?>"
-            >
-            <button type="submit"><i class="fas fa-search"></i></button>
-        </form>
-        
-        <?php if ($searchResults): ?>
-        <div class="search-results">
-            Found <span class="search-results-count"><?php echo count($diveLogsData); ?></span> 
-            dive log entries for "<?php echo htmlspecialchars($searchTerm); ?>"
-            <a href="index.php" class="clear-search"><i class="fas fa-times"></i> Clear</a>
-        </div>
-        <?php endif; ?>
-        
-        <div class="stats-container row justify-content-center">
-            <div class="col-4 col-md-3 mb-2">
-                <a href="divelist.php" class="stat-link">
-                    <div class="stat-box">
-                        <h3>Dives</h3>
-                        <p class="stat-value"><?php echo $totalDives; ?></p>
-                    </div>
-                </a>
-            </div>
-            <?php if ($latestDive): ?>
-            <div class="col-5 col-md-4 mb-2">
+        <!-- Stats Section -->
+        <div class="stats-container">
+            <a href="divelist.php" class="stat-link">
                 <div class="stat-box">
-                    <h3>Latest</h3>
-                    <p class="stat-value"><?php echo date('d M', strtotime($latestDive['date'])); ?></p>
-                    <p class="stat-location"><?php echo htmlspecialchars($latestDive['location']); ?></p>
+                    <h3>Total Dives</h3>
+                    <p class="stat-value"><?php echo $totalDives; ?></p>
+                    <p>recorded in the logbook</p>
                 </div>
+            </a>
+            
+            <?php if ($latestDive): ?>
+            <div class="stat-box">
+                <h3>Latest Dive</h3>
+                <p class="stat-value"><?php echo date('d M', strtotime($latestDive['date'])); ?></p>
+                <p class="stat-location"><?php echo htmlspecialchars($latestDive['location']); ?></p>
+            </div>
+            <?php endif; ?>
+            
+            <div class="stat-box">
+                <h3>Locations</h3>
+                <p class="stat-value"><?php echo $locationCount; ?></p>
+                <p>unique dive sites</p>
+            </div>
+            
+            <?php if ($deepestDive): ?>
+            <div class="stat-box">
+                <h3>Deepest Dive</h3>
+                <p class="stat-value"><?php echo $deepestDive['depth']; ?> m</p>
+                <p class="stat-location"><?php echo htmlspecialchars($deepestDive['location']); ?></p>
             </div>
             <?php endif; ?>
         </div>
         
-        <div class="filter-container">
-            <h3>Filter by Year:</h3>
-            <div class="year-filters">
-                <button class="year-filter active" data-year="all">All Years</button>
-                <?php foreach ($years as $year): ?>
-                <button class="year-filter" data-year="<?php echo $year; ?>"><?php echo $year; ?></button>
-                <?php endforeach; ?>
-            </div>
-        </div>
-        
+        <!-- Map -->
         <div id="map"></div>
-        
-        <div class="text-center mt-4 mb-4">
-            <h3>All Dive Log Entries (<?php echo count($diveLogsData); ?>)</h3>
-        </div>
     </div>
     
     <!-- Bootstrap JS -->
@@ -476,6 +530,6 @@ rsort($years);
     </script>
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
-    <script src="script.js"></script>
+    <script src="map.js"></script>
 </body>
 </html> 
