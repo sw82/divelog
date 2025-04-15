@@ -94,6 +94,21 @@ document.addEventListener('DOMContentLoaded', function() {
         .openOn(map);
     });
 
+    // When a marker is added to the cluster group, ensure the popup works correctly
+    markerClusterGroup.on('layeradd', function(event) {
+        const layer = event.layer;
+        if (layer && layer.getLatLng && layer.bindPopup) {
+            // Make sure popups on individual markers work
+            layer.on('click', function(e) {
+                // Stop the click event from propagating to the map
+                L.DomEvent.stopPropagation(e);
+                
+                // Open the popup for this marker
+                this.openPopup();
+            });
+        }
+    });
+
     // Handle window resize - update map size
     function adjustMapSize() {
         if (map) {
@@ -393,67 +408,6 @@ document.addEventListener('DOMContentLoaded', function() {
         return popupContent;
     }
     
-    // Function to create popup content for multiple dives
-    function createMultipleDivesPopup(diveGroup, locationKey) {
-        // Sort dives by date (newest first)
-        const sortedDives = [...diveGroup].sort((a, b) => new Date(b.date) - new Date(a.date));
-        
-        let popupContent = `
-            <div class="dive-popup multiple-dives">
-                <h3>${sortedDives[0].location}</h3>
-                <p class="dive-count">${sortedDives.length} activities at this location</p>
-                <div class="dive-list">`;
-        
-        // Add each dive in the group
-        sortedDives.forEach(function(dive) {
-            const diveDate = new Date(dive.date);
-            const formattedDate = diveDate.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-            const activityType = dive.activity_type || 'diving';
-            const activityLabel = activityType.charAt(0).toUpperCase() + activityType.slice(1);
-            
-            // Generate stars for the rating if available
-            let ratingStars = '';
-            if (dive.rating) {
-                ratingStars = `<span class="dive-list-rating">${'★'.repeat(dive.rating)}</span>`;
-            }
-            
-            // Generate thumbnail if this dive has images
-            let thumbnailHtml = '';
-            if (dive.images && dive.images.length > 0) {
-                thumbnailHtml = `<img src="uploads/diveimages/${dive.images[0].filename}" alt="Dive Image" class="dive-list-thumbnail">`;
-            }
-            
-            // Add dive summary with brief stats
-            popupContent += `
-                <div class="dive-list-item" data-dive-id="${dive.id}">
-                    <div class="dive-list-header">
-                        <div class="dive-list-date">${formattedDate}</div>
-                        ${ratingStars}
-                    </div>
-                    <div class="dive-list-details">
-                        ${thumbnailHtml}
-                        <div class="dive-list-stats">
-                            <span class="dive-stat"><strong>Type:</strong> ${activityLabel}</span>
-                            ${dive.depth ? `<span class="dive-stat"><strong>Depth:</strong> ${dive.depth}m</span>` : ''}
-                            ${dive.duration ? `<span class="dive-stat"><strong>Time:</strong> ${dive.duration}min</span>` : ''}
-                            ${dive.dive_site_type ? `<span class="dive-stat"><strong>Site:</strong> ${dive.dive_site_type}</span>` : ''}
-                        </div>
-                    </div>
-                    <div class="dive-list-actions">
-                        <a href="#" class="view-dive-details" data-dive-id="${dive.id}">View Details</a>
-                        <a href="populate_db.php?edit=${dive.id}" class="edit-dive">Edit</a>
-                    </div>
-                </div>`;
-        });
-        
-        popupContent += `
-                </div>
-                <div id="single-dive-details-${locationKey.replace(/[^a-z0-9]/gi, '-')}" class="single-dive-details"></div>
-            </div>`;
-        
-        return popupContent;
-    }
-    
     // Create a legend for year colors
     function createYearLegend(years) {
         var legend = L.control({ position: 'bottomright' });
@@ -522,28 +476,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Find the dive data
                 const diveData = diveLogsData.find(dive => dive.id == diveId);
                 if (diveData) {
-                    // Find the container
-                    const locationKey = `${parseFloat(diveData.latitude).toFixed(5)},${parseFloat(diveData.longitude).toFixed(5)}`;
-                    const containerId = `single-dive-details-${locationKey.replace(/[^a-z0-9]/gi, '-')}`;
-                    const container = document.getElementById(containerId);
+                    // Generate detailed popup content
+                    const popupContent = createSingleDivePopup(diveData);
                     
-                    if (container) {
-                        // Generate detailed popup content
-                        container.innerHTML = createSingleDivePopup(diveData);
-                        
-                        // Scroll to the details
-                        container.scrollIntoView({ behavior: 'smooth' });
-                        
-                        // Highlight the selected dive
-                        document.querySelectorAll('.dive-list-item').forEach(item => {
-                            item.classList.remove('active');
-                        });
-                        
-                        const activeItem = document.querySelector(`.dive-list-item[data-dive-id="${diveId}"]`);
-                        if (activeItem) {
-                            activeItem.classList.add('active');
-                        }
-                    }
+                    // Show the popup at the marker location
+                    const latLng = [parseFloat(diveData.latitude), parseFloat(diveData.longitude)];
+                    L.popup({
+                        maxWidth: 350,
+                        className: 'dive-popup-container'
+                    })
+                    .setLatLng(latLng)
+                    .setContent(popupContent)
+                    .openOn(map);
+                    
+                    // Center map on this location
+                    map.setView(latLng, 14);
                 }
             }
         });
@@ -579,4 +526,4 @@ document.addEventListener('DOMContentLoaded', function() {
     } else {
         console.warn("No dive log data available. Make sure diveLogsData is properly defined.");
     }
-}); 
+});
