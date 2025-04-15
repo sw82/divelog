@@ -125,14 +125,16 @@ h1 {
 .dive-popup-container {
     max-height: 500px;
     overflow-y: auto;
+    padding-right: 5px;
 }
 
 .dive-popup h3 {
     margin-top: 0;
     margin-bottom: 8px;
-    color: #2196F3;
-    border-bottom: 1px solid #eee;
+    color: #0277bd;
+    border-bottom: 1px solid #e0e0e0;
     padding-bottom: 8px;
+    font-size: 16px;
 }
 
 .dive-popup p {
@@ -144,6 +146,9 @@ h1 {
     grid-template-columns: repeat(2, 1fr);
     gap: 8px;
     margin: 10px 0;
+    background-color: #f5f5f5;
+    padding: 8px;
+    border-radius: 4px;
 }
 
 .dive-details p {
@@ -242,12 +247,14 @@ h1 {
 .fish-sightings-title {
     font-weight: bold;
     margin-bottom: 10px;
+    color: #0277bd;
 }
 
 .fish-list {
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
+    margin-bottom: 10px;
 }
 
 .fish-item {
@@ -258,6 +265,11 @@ h1 {
     padding: 5px;
     background-color: #f9f9f9;
     width: calc(50% - 5px);
+    transition: background-color 0.2s;
+}
+
+.fish-item:hover {
+    background-color: #e3f2fd;
 }
 
 .fish-image {
@@ -267,12 +279,13 @@ h1 {
     border-radius: 3px;
     margin-right: 8px;
     flex-shrink: 0;
+    border: 1px solid #e0e0e0;
 }
 
 .fish-image-placeholder {
     width: 40px;
     height: 40px;
-    background-color: #eee;
+    background-color: #e0e0e0;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -280,7 +293,7 @@ h1 {
     margin-right: 8px;
     font-size: 10px;
     text-align: center;
-    color: #777;
+    color: #757575;
 }
 
 .fish-info {
@@ -294,6 +307,7 @@ h1 {
     overflow: hidden;
     text-overflow: ellipsis;
     font-size: 12px;
+    color: #333;
 }
 
 .fish-quantity {
@@ -304,24 +318,33 @@ h1 {
 .more-fish {
     display: block;
     margin-top: 10px;
+    margin-bottom: 5px;
     font-size: 12px;
-    color: #2196F3;
+    color: #0277bd;
     text-decoration: none;
+    text-align: center;
+    padding: 4px;
+    background-color: #e3f2fd;
+    border-radius: 4px;
+    transition: background-color 0.2s;
 }
 
 .more-fish:hover {
-    text-decoration: underline;
+    background-color: #bbdefb;
+    text-decoration: none;
 }
 
 /* Customize Leaflet Popup */
 .leaflet-popup-content-wrapper {
     border-radius: 6px;
     padding: 0;
+    max-width: 350px;
 }
 
 .leaflet-popup-content {
     margin: 12px;
-    min-width: 200px;
+    width: auto !important;
+    max-width: 350px;
 }
 
 /* Styles for populate_db.php */
@@ -719,4 +742,68 @@ table th {
     margin: 20px 0 10px 0;
     padding-bottom: 5px;
     border-bottom: 1px solid #eee;
+}
+
+/* Additional Map and Marker Styles */
+.circle-marker {
+    transition: all 0.2s ease;
+}
+
+.circle-marker:hover {
+    stroke-width: 3px;
+    stroke-opacity: 1;
+}
+
+/* Map Legend Styles */
+.legend {
+    padding: 8px 10px;
+    background: white;
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+    border-radius: 5px;
+    line-height: 1.5;
+}
+
+.legend h4 {
+    margin: 0 0 5px;
+    font-size: 14px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 3px;
+}
+
+.legend-color {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    margin-right: 8px;
+    display: inline-block;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+.legend-activity {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    margin-right: 8px;
+    display: inline-block;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+.legend-snorkel {
+    border-style: dashed;
+}
+
+.legend-label {
+    font-size: 13px;
+    color: #333;
+}
+
+.dive-rating {
+    color: #ffc107;
+    font-size: 13px;
+    margin-bottom: 10px;
 } 
