@@ -79,6 +79,10 @@ This project has undergone a major restructuring:
 - **Backup & Export**: 
   - Database backup and restore functionality
   - Export dive logs to CSV format
+  - Database management options:
+    - Delete all entries for fresh start
+    - Populate with sample data for testing
+    - Selective export of dive logs
 - **OCR Import**: Convert handwritten dive logs to digital entries using OCR technology
   - Batch process multiple logbook pages
   - Automatic data extraction for:
@@ -99,11 +103,14 @@ This project has undergone a major restructuring:
 ## Usage
 
 1. **View Dive Log**: Open index.php to see the interactive map with all dives
-2. **Manage Database**: Use populate_db.php to add or edit dive entries
-3. **Fish Species**: Use fish_manager.php to manage fish species and sightings
-4. **Backup & Export**: Use manage_db.php to:
+2. **Manage Database**: Use manage_db.php to:
    - Create and manage database backups
+   - Restore from backup files
    - Export dive logs to CSV format
+   - Delete database entries
+   - Populate database with sample data for testing
+3. **Manage Dive Entries**: Use populate_db.php to add, edit, or delete dive entries
+4. **Fish Species**: Use fish_manager.php to manage fish species and sightings
 5. **Import Logs**: Use import.php to convert handwritten logs using OCR
 
 ## OCR Requirements
@@ -233,11 +240,20 @@ The OCR feature supports:
 ### Backup and Maintenance
 
 1. **Regular Backups**
-   - Use the built-in backup functionality
+   - Use the built-in backup functionality in manage_db.php
+   - Create manual backups before major changes
    - Schedule automated backups using cron jobs
    - Store backups in a secure location
+   - Restore from backups when needed
 
-2. **Updates**
+2. **Database Management**
+   - Use manage_db.php for comprehensive database operations:
+     - Reset/delete database entries when needed
+     - Populate with sample data for testing or demonstrations
+     - Export selected dive logs to CSV format
+     - Manage database backup files (download/delete)
+
+3. **Updates**
    - Pull latest changes from repository
    - Check for database schema updates
    - Test all functionality after updates
