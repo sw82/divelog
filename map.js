@@ -58,6 +58,9 @@ document.addEventListener('DOMContentLoaded', function() {
             className: 'dive-popup-container'
         });
         
+        // Store the dive data in the marker for later access
+        marker.diveData = dive;
+        
         return marker;
     }
     
@@ -196,13 +199,109 @@ document.addEventListener('DOMContentLoaded', function() {
         return popupContent;
     }
     
-    // Display markers on the map
-    function displayMarkers(dives, selectedYear = 'all') {
-        // Clear existing markers
-        if (window.markerLayer) {
-            window.markerLayer.clearLayers();
+    // Create a custom cluster icon with a nice appearance
+    function createClusterIcon(cluster) {
+        const childCount = cluster.getChildCount();
+        
+        // Count dive types within this cluster
+        let divingCount = 0;
+        let snorkelingCount = 0;
+        
+        cluster.getAllChildMarkers().forEach(marker => {
+            if (marker.diveData && marker.diveData.activity_type === 'snorkeling') {
+                snorkelingCount++;
+            } else {
+                divingCount++;
+            }
+        });
+        
+        // Determine if it's a mixed cluster
+        const hasMixed = divingCount > 0 && snorkelingCount > 0;
+        
+        // Get years from the cluster for color calculation
+        const years = cluster.getAllChildMarkers()
+            .map(marker => marker.diveData && marker.diveData.year)
+            .filter(year => year);
+        
+        // Use most recent year for color if available, otherwise use a default
+        let clusterColor = '#4363d8'; // Default blue color
+        if (years.length > 0) {
+            // Find the most recent year
+            const mostRecentYear = Math.max(...years);
+            clusterColor = getColorForYear(mostRecentYear);
         }
         
+        // Create the HTML for the cluster icon
+        let html = `
+            <div class="cluster-icon" style="background-color: ${clusterColor}">
+                <span>${childCount}</span>
+            </div>
+        `;
+        
+        // Add border style based on activity types
+        let className = 'custom-cluster-icon';
+        if (hasMixed) {
+            className += ' mixed-cluster';
+        } else if (snorkelingCount > 0) {
+            className += ' snorkel-cluster';
+        }
+        
+        return L.divIcon({
+            html: html,
+            className: className,
+            iconSize: L.point(36, 36),
+            iconAnchor: L.point(18, 18)
+        });
+    }
+    
+    // Create a custom popup for clusters
+    function createClusterPopup(cluster) {
+        const markers = cluster.getAllChildMarkers();
+        const dives = markers.map(marker => marker.diveData).filter(dive => dive);
+        
+        // Group dives by location
+        const locations = {};
+        dives.forEach(dive => {
+            if (!locations[dive.location]) {
+                locations[dive.location] = [];
+            }
+            locations[dive.location].push(dive);
+        });
+        
+        // Create popup content
+        let popupContent = `
+            <div class="cluster-popup">
+                <h3>${markers.length} Dives in this Area</h3>
+                <p>Locations:</p>
+                <ul class="locations-list">
+        `;
+        
+        // Add each location with count
+        Object.keys(locations).sort().forEach(location => {
+            const locationDives = locations[location];
+            popupContent += `
+                <li>
+                    ${location} (${locationDives.length})
+                    <a href="#" class="zoom-to-location" 
+                       data-lat="${locationDives[0].latitude}" 
+                       data-lng="${locationDives[0].longitude}">
+                       Zoom
+                    </a>
+                </li>
+            `;
+        });
+        
+        popupContent += `
+                </ul>
+                <p class="cluster-note">Zoom in to see individual dive markers</p>
+            </div>
+        `;
+        
+        return popupContent;
+    }
+    
+    // Display markers on the map
+    function displayMarkers(dives, selectedYear = 'all') {
         // Check if we have valid dive data
         if (!dives || !Array.isArray(dives)) {
             console.error('Invalid dive data:', dives);
@@ -221,8 +320,10 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        // Create a new layer group for markers
-        window.markerLayer = L.layerGroup();
+        // Clear existing markers and clusters
+        if (window.markerLayer) {
+            map.removeLayer(window.markerLayer);
+        }
         
         // Filter dives by selected year if needed
         let filteredDives = dives;
@@ -265,6 +366,18 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
+        // Create a marker cluster group with custom options
+        window.markerLayer = L.markerClusterGroup({
+            maxClusterRadius: 30,               // Smaller radius for more precise clusters
+            spiderfyOnMaxZoom: true,            // Enable spiderfy at max zoom
+            showCoverageOnHover: false,         // Don't show cluster coverage area
+            zoomToBoundsOnClick: true,          // Zoom to bounds when clicking a cluster
+            disableClusteringAtZoom: 14,        // Don't cluster at very zoomed in levels
+            iconCreateFunction: createClusterIcon,  // Custom cluster icon function
+            chunkedLoading: true,               // Load markers in chunks to avoid UI blocking
+            animate: true                       // Animate cluster to new markers
+        });
+        
         // Create and add markers for each dive
         filteredDives.forEach(dive => {
             // Check that required coordinates exist and are valid numbers
@@ -282,8 +395,32 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
-        // Add the layer group to the map
-        window.markerLayer.addTo(map);
+        // Add popup for clusters
+        window.markerLayer.on('clusterclick', function(e) {
+            const cluster = e.layer;
+            const popup = L.popup()
+                .setLatLng(cluster.getLatLng())
+                .setContent(createClusterPopup(cluster))
+                .openOn(map);
+            
+            // Add event listeners for "Zoom" links after popup is opened
+            setTimeout(() => {
+                document.querySelectorAll('.zoom-to-location').forEach(link => {
+                    link.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        const lat = parseFloat(this.getAttribute('data-lat'));
+                        const lng = parseFloat(this.getAttribute('data-lng'));
+                        if (!isNaN(lat) && !isNaN(lng)) {
+                            map.setView([lat, lng], 14);
+                            map.closePopup();
+                        }
+                    });
+                });
+            }, 100);
+        });
+        
+        // Add the marker cluster group to the map
+        map.addLayer(window.markerLayer);
         
         // Update the counter element if it exists
         const countElement = document.getElementById('filtered-count');
@@ -292,7 +429,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         // Fit map to markers if we have any
-        if (window.markerLayer.getLayers().length > 0) {
+        if (window.markerLayer && window.markerLayer.getLayers().length > 0) {
             try {
                 map.fitBounds(window.markerLayer.getBounds(), {
                     padding: [50, 50],

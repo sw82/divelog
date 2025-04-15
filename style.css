@@ -806,4 +806,107 @@ table th {
     color: #ffc107;
     font-size: 13px;
     margin-bottom: 10px;
+}
+
+/* Marker Cluster Styles */
+.custom-cluster-icon {
+    background: none !important;
+    border: none !important;
+}
+
+.cluster-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background-color: #4363d8;
+    color: white;
+    text-align: center;
+    line-height: 36px;
+    font-weight: bold;
+    font-size: 14px;
+    border: 2px solid white;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mixed-cluster .cluster-icon {
+    background-image: linear-gradient(45deg, #4363d8 50%, #2ca02c 50%);
+}
+
+.snorkel-cluster .cluster-icon {
+    border: 3px dashed white;
+}
+
+/* Cluster popup styles */
+.cluster-popup h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    color: #0277bd;
+    font-size: 16px;
+}
+
+.locations-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.locations-list li {
+    padding: 5px 0;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.locations-list li:last-child {
+    border-bottom: none;
+}
+
+.zoom-to-location {
+    background-color: #0277bd;
+    color: white;
+    text-decoration: none;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    margin-left: 10px;
+}
+
+.zoom-to-location:hover {
+    background-color: #015384;
+}
+
+.cluster-note {
+    font-style: italic;
+    color: #666;
+    font-size: 12px;
+    margin-top: 10px;
+    text-align: center;
+}
+
+/* Override default marker cluster styles */
+.marker-cluster {
+    background-color: rgba(67, 99, 216, 0.6);
+}
+
+.marker-cluster div {
+    background-color: rgba(67, 99, 216, 0.9);
+    color: white;
+    font-weight: bold;
+}
+
+/* Fix for popup images in clusters */
+.leaflet-popup-content {
+    width: auto !important;
+}
+
+/* Make the marker cluster transitions smoother */
+.leaflet-marker-icon,
+.leaflet-marker-shadow {
+    transition: transform 0.3s ease-out;
 } 
