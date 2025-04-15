@@ -312,8 +312,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
                 <li>Comments (optional)</li>
                 <li>Fish Sightings (optional, will be ignored during import)</li>
             </ol>
-            <p>You can download a CSV file exported from this system and modify it for import.</p>
-            <a href="export_csv.php" class="download-template">Download Template CSV</a>
+            <p>You can download a template CSV file with the correct format and sample data to help you get started.</p>
+            <a href="csv_template.php" class="download-template">Download Template CSV</a>
         </div>
         
         <div class="csv-form">
