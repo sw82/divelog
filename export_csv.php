@@ -53,6 +53,7 @@ fputcsv($output, [
     'Visibility (m)',
     'Buddy',
     'Dive Site Type',
+    'Activity Type',
     'Rating',
     'Comments',
     'Fish Sightings'
@@ -98,6 +99,7 @@ if ($result && $result->num_rows > 0) {
             $row['visibility'],
             $row['buddy'],
             $row['dive_site_type'],
+            $row['activity_type'],
             $row['rating'],
             $row['comments'],
             implode('; ', $fishSightingsText)

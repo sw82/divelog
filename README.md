@@ -20,13 +20,13 @@ Done with Vibe Coding.
 - [x] download multiple dives at once as csv with all values
 - [ ] search for a specific location (all three fields) or divepoint
 - [ ] backup your data to google drive
-- [ ] next to diving add snorkeling as option in the database as well in the interfaces.
-- [ ] if there are many dive spots at one location/zoom level add a number and once you click it offer a selection.
+- [x] next to diving add snorkeling as option in the database as well in the interfaces.
+- [x] if there are many dive spots at one location/zoom level add a number and once you click it offer a selection.
 - [x] check for security. also if I add this to git I don't want any personla information in it
 - [x] add to the readme all steps needed to set up the project (database, webserver etc.)
-- [] mobile first implementation
-
-
+- [x] mobile first implementation. everything needs to be super responsive. if needed use the best framework for this.
+- [ ] check all sub pages if the menu and navigation is right and the hierachy
+- [x] check if the export csv function is still correct and according to the latest database style.
 
 ## Project Changes
 
@@ -44,6 +44,7 @@ This project has undergone a major restructuring:
   - Fish species tracking with images from both uploads and web sources
   - Recording fish sightings linked to specific dives
   - Database backup functionality (schema and content)
+  - Mobile-first responsive design using Bootstrap 5
 - Simplified architecture for easier maintenance and self-hosting
 
 ## Features
@@ -68,6 +69,11 @@ This project has undergone a major restructuring:
     - Visibility
     - Comments
   - Manual review and correction of extracted data
+- **Responsive Design**:
+  - Mobile-first approach ensures optimal viewing on all devices
+  - Touch-friendly interface elements
+  - Adaptive layout that scales from phones to desktop screens
+  - Optimized map controls for touch screens
 
 ## Usage
 

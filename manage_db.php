@@ -134,6 +134,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'export_csv') {
         'Visibility (m)',
         'Buddy',
         'Dive Site Type',
+        'Activity Type',
         'Rating',
         'Comments',
         'Fish Sightings'
@@ -179,6 +180,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'export_csv') {
                 $row['visibility'],
                 $row['buddy'],
                 $row['dive_site_type'],
+                $row['activity_type'],
                 $row['rating'],
                 $row['comments'],
                 implode('; ', $fishSightingsText)
