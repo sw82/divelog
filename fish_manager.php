@@ -388,9 +388,10 @@ if ($_SERVER["REQUEST_METHOD"] == "GET" && isset($_GET['action']) && $_GET['acti
 <body>
     <nav class="menu">
         <a href="index.php">View Dive Log</a>
-        <a href="populate_db.php">Manage Database</a>
+        <a href="populate_db.php">Manage Dives</a>
         <a href="fish_manager.php" class="active">Fish Species</a>
-        <a href="backup_db.php">Backup Database</a>
+        <a href="manage_db.php">Manage Database</a>
+        <a href="import.php">Import</a>
     </nav>
     
     <h1>Fish Species Manager</h1>

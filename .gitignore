@@ -45,6 +45,7 @@ composer.lock
 
 # Sensitive information
 db.php
+config.php
 
 # Upload directories - ignore the files but keep the directories
 uploads/diveimages/*

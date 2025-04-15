@@ -222,28 +222,14 @@ rsort($years);
             align-items: center;
             justify-content: center;
         }
-        
-        .export-btn {
-            background-color: #4CAF50;
-            color: white;
-            padding: 8px 16px;
-            border-radius: 4px;
-            text-decoration: none;
-            margin-left: 10px;
-        }
-        
-        .export-btn:hover {
-            background-color: #45a049;
-        }
     </style>
 </head>
 <body>
     <nav class="menu">
         <a href="index.php" class="active">View Dive Log</a>
-        <a href="populate_db.php">Manage Database</a>
+        <a href="populate_db.php">Manage Dives</a>
         <a href="fish_manager.php">Fish Species</a>
-        <a href="backup_db.php">Backup Database</a>
-        <a href="export_csv.php" class="export-btn">Export CSV</a>
+        <a href="manage_db.php">Manage Database</a>
     </nav>
     <h1>Dive Log</h1>
     

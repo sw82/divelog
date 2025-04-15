@@ -150,6 +150,25 @@ if (!$isCLI) {
         .back-link:hover {
             background-color: #0b7dda;
         }
+        .export-section {
+            margin-top: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+        }
+        .export-button {
+            padding: 10px 20px;
+            background-color: #2196F3;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            display: inline-block;
+            margin-top: 10px;
+        }
+        .export-button:hover {
+            background-color: #0b7dda;
+        }
     </style>
 </head>
 <body>
@@ -325,6 +344,14 @@ if (!file_exists($gitignoreFile)) {
 
 if (!$isCLI) {
     echo "<a href='?action=list' class='back-link'>View All Backups</a>";
+
+    // Add CSV export section
+    echo "<div class='export-section'>";
+    echo "<h2>Export Data</h2>";
+    echo "<p>Export your dive logs to CSV format for backup or analysis.</p>";
+    echo "<a href='export_csv.php' class='export-button'>Export to CSV</a>";
+    echo "</div>";
+
     echo "</body></html>";
 }
 ?> 
