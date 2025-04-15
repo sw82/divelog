@@ -36,7 +36,7 @@ document.addEventListener('DOMContentLoaded', function() {
         animate: true,
         animateAddingMarkers: true,
         chunkedLoading: true,
-        singleMarkerMode: false
+        singleMarkerMode: true
     });
     map.addLayer(markerClusterGroup);
 
@@ -160,15 +160,20 @@ document.addEventListener('DOMContentLoaded', function() {
             html = `<div style="background-color: ${color}; width: 24px; height: 24px; border-radius: 12px; border: ${borderWidth} ${borderStyle} white;"></div>`;
         }
         
-        return L.marker([lat, lng], {
+        // Create marker with interactive options
+        const marker = L.marker([lat, lng], {
             icon: L.divIcon({
                 className: 'colored-marker',
                 html: html,
                 iconSize: count > 1 ? [32, 32] : [28, 28],
                 iconAnchor: count > 1 ? [16, 16] : [14, 14],
                 popupAnchor: [0, -14]
-            })
+            }),
+            interactive: true,
+            bubblingMouseEvents: false
         });
+        
+        return marker;
     }
     
     // Function to get appropriate popup dimensions based on screen width
@@ -236,6 +241,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     // Store the dive data with the marker for cluster popups
                     marker.diveData = diveLog;
+                    
+                    // Add explicit click handler to ensure popup opens
+                    marker.on('click', function(e) {
+                        this.openPopup();
+                    });
                     
                     // Add to markers array and to cluster group
                     markers.push(marker);
