@@ -176,360 +176,262 @@ foreach ($diveLogsData as $dive) {
     }
 }
 $locationCount = count($uniqueLocations);
+
+// Get dive logs for the map
+$diveLogsQuery = "SELECT id, location, date, rating, depth, duration, latitude, longitude, activity_type, 
+                        temperature, visibility, air_temperature, dive_site_type, buddy, description, comments,
+                        YEAR(date) as year
+                 FROM divelogs 
+                 WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+                 ORDER BY date DESC";
+$diveLogsResult = $conn->query($diveLogsQuery);
+
+$diveLogs = [];
+if ($diveLogsResult && $diveLogsResult->num_rows > 0) {
+    while ($row = $diveLogsResult->fetch_assoc()) {
+        // Add the raw dive log data
+        $diveLog = $row;
+        
+        // Get fish sightings count
+        $fishQuery = "SELECT COUNT(*) as count FROM fish_sightings WHERE divelog_id = " . $row['id'];
+        $fishResult = $conn->query($fishQuery);
+        if ($fishResult && $fishRow = $fishResult->fetch_assoc()) {
+            $diveLog['fish_count'] = $fishRow['count'];
+        } else {
+            $diveLog['fish_count'] = 0;
+        }
+        
+        // Get images for this dive
+        $imagesQuery = "SELECT id, filename, caption FROM divelog_images WHERE divelog_id = " . $row['id'];
+        $imagesResult = $conn->query($imagesQuery);
+        $diveLog['images'] = [];
+        if ($imagesResult && $imagesResult->num_rows > 0) {
+            while ($imageRow = $imagesResult->fetch_assoc()) {
+                $diveLog['images'][] = $imageRow;
+            }
+        }
+        
+        $diveLogs[] = $diveLog;
+    }
+}
+
+// Statistics
+$totalDives = 0;
+$totalSnorkeling = 0;
+$totalMinutes = 0;
+$maxDepth = 0;
+$locations = [];
+
+foreach ($diveLogs as $dive) {
+    // Count by activity type
+    if ($dive['activity_type'] === 'snorkeling') {
+        $totalSnorkeling++;
+    } else {
+        $totalDives++;
+    }
+    
+    // Track locations
+    if (!in_array($dive['location'], $locations)) {
+        $locations[] = $dive['location'];
+    }
+    
+    // Track max depth
+    if (!empty($dive['depth']) && $dive['depth'] > $maxDepth) {
+        $maxDepth = $dive['depth'];
+    }
+    
+    // Track total minutes
+    if (!empty($dive['duration'])) {
+        $totalMinutes += $dive['duration'];
+    }
+}
+
+$totalActivities = $totalDives + $totalSnorkeling;
+$locationCount = count($locations);
+$avgDuration = $totalActivities > 0 ? round($totalMinutes / $totalActivities) : 0;
+
+// Find the latest dive
+$latestDive = null;
+foreach ($diveLogs as $dive) {
+    if ($latestDive === null || strtotime($dive['date']) > strtotime($latestDive['date'])) {
+        $latestDive = $dive;
+    }
+}
+
+// Get highlighted location from URL params if provided
+$highlightLat = isset($_GET['lat']) ? floatval($_GET['lat']) : null;
+$highlightLng = isset($_GET['lng']) ? floatval($_GET['lng']) : null;
+$highlightTitle = isset($_GET['title']) ? htmlspecialchars($_GET['title']) : '';
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="theme-color" content="#333333">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black">
-    <title>Dive Log</title>
-    <!-- Bootstrap CSS -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dive Log Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-    <!-- Add MarkerCluster CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
-        .fish-sightings-container {
-            margin-top: 15px;
-            border-top: 1px solid #eee;
-            padding-top: 15px;
-        }
-        .fish-sightings-title {
-            font-weight: bold;
-            margin-bottom: 10px;
-        }
-        .fish-list {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-        .fish-item {
-            display: flex;
-            align-items: center;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            padding: 5px;
-            background-color: #f9f9f9;
-            max-width: 100%;
-        }
-        .fish-image {
-            width: 40px;
-            height: 40px;
-            object-fit: cover;
-            border-radius: 3px;
-            margin-right: 8px;
-            flex-shrink: 0;
-        }
-        .fish-image-placeholder {
-            width: 40px;
-            height: 40px;
-            background-color: #eee;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 3px;
-            margin-right: 8px;
-            font-size: 10px;
-            text-align: center;
-            color: #777;
-        }
-        .fish-info {
-            flex-grow: 1;
-            overflow: hidden;
-        }
-        .fish-name {
-            font-weight: bold;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            font-size: 12px;
-        }
-        .fish-quantity {
-            font-size: 11px;
-            color: #666;
-        }
-        .more-fish {
-            margin-top: 10px;
-            font-size: 12px;
-            color: #2196F3;
+        #map {
+            height: 600px;
+            width: 100%;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
         
-        /* Year Legend Styles */
-        .year-legend {
-            background: white;
-            padding: 10px;
-            border-radius: 5px;
-            box-shadow: 0 1px 5px rgba(0,0,0,0.4);
-            max-width: 200px;
-        }
-        .year-legend h4 {
-            margin: 0 0 8px 0;
-            font-size: 14px;
-            color: #333;
-        }
-        .legend-item {
-            display: flex;
-            align-items: center;
-            margin-bottom: 5px;
-            font-size: 12px;
-        }
-        .color-box {
-            display: inline-block;
-            width: 16px;
-            height: 16px;
-            margin-right: 8px;
-            border-radius: 3px;
-            border: 1px solid rgba(0,0,0,0.2);
-        }
-        
-        /* Colored Marker Style */
-        .colored-marker {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        /* Search Form */
-        .search-form {
-            margin-bottom: 15px;
-            display: flex;
-            max-width: 500px;
-            margin: 0 auto 15px;
-        }
-        
-        .search-form input {
-            flex-grow: 1;
-            border: 1px solid #ddd;
-            border-radius: 4px 0 0 4px;
-            padding: 8px 12px;
-            font-size: 14px;
-        }
-        
-        .search-form button {
-            background-color: #2196F3;
-            border: none;
-            color: white;
-            padding: 8px 15px;
-            border-radius: 0 4px 4px 0;
-            cursor: pointer;
-        }
-        
-        .search-results {
-            margin-bottom: 15px;
-            padding: 8px 15px;
-            background-color: #f5f5f5;
-            border-radius: 4px;
-            text-align: center;
-            font-size: 14px;
-        }
-        
-        .search-results-count {
-            font-weight: bold;
-            color: #2196F3;
-        }
-        
-        .clear-search {
-            color: #f44336;
-            text-decoration: none;
-            margin-left: 10px;
-        }
-        
-        /* Marker Cluster Custom Styles */
-        .custom-cluster-icon {
-            background: none;
-        }
-        
-        .cluster-icon {
-            background-color: #4363d8;
-            width: 36px;
-            height: 36px;
-            border-radius: 18px;
-            border: 3px solid white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            font-size: 14px;
-            color: white;
-            box-shadow: 0 1px 5px rgba(0,0,0,0.3);
-        }
-        
-        /* Override Leaflet MarkerCluster Default Styles */
-        .marker-cluster-small,
-        .marker-cluster-medium,
-        .marker-cluster-large {
-            background-color: rgba(67, 99, 216, 0.2) !important;
-        }
-        
-        .marker-cluster-small div,
-        .marker-cluster-medium div,
-        .marker-cluster-large div {
-            background-color: #4363d8 !important;
-            color: white !important;
-            font-weight: bold !important;
-            border: 3px solid white !important;
-            box-shadow: 0 1px 5px rgba(0,0,0,0.3) !important;
-        }
-        
-        /* Cluster Popup Styles */
-        .cluster-popup-container {
-            margin-bottom: 30px;
-        }
-        
-        .cluster-popup h3 {
-            margin-top: 0;
-            margin-bottom: 10px;
-            font-size: 16px;
-            color: #333;
-        }
-        
-        .cluster-popup p {
-            margin-bottom: 10px;
-            font-size: 14px;
-        }
-        
-        .locations-list {
-            margin: 0;
-            padding-left: 20px;
-            margin-bottom: 15px;
-        }
-        
-        .locations-list li {
-            margin-bottom: 5px;
-            font-size: 14px;
-        }
-        
-        .cluster-note {
-            font-style: italic;
-            color: #666;
-            font-size: 12px !important;
-            text-align: center;
-            border-top: 1px solid #eee;
-            padding-top: 8px;
-        }
-        
-        /* Improved Stats Section */
         .stats-container {
             display: flex;
-            justify-content: center;
-            gap: 20px;
-            margin: 30px auto;
-            max-width: 1000px;
+            justify-content: space-between;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
         }
         
         .stat-box {
-            background-color: #fff;
-            border-radius: 10px;
-            padding: 20px;
-            text-align: center;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
             flex: 1;
-            min-width: 150px;
-            transition: transform 0.2s, box-shadow 0.2s;
-            border-top: 4px solid #0277bd;
+            min-width: 180px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+            border-top: 3px solid #2196F3;
         }
         
         .stat-box:hover {
             transform: translateY(-5px);
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
         }
         
-        .stat-link {
-            text-decoration: none;
-            color: inherit;
-            display: block;
-            height: 100%;
-        }
-        
-        .stat-box h3 {
-            margin: 0 0 10px 0;
-            font-size: 18px;
-            color: #555;
-            font-weight: 600;
+        .stat-box.snorkel {
+            border-top-color: #4CAF50;
         }
         
         .stat-value {
-            font-size: 36px;
+            font-size: 28px;
             font-weight: bold;
-            margin: 10px 0;
-            color: #0277bd;
+            color: #2196F3;
+            margin: 5px 0;
+            line-height: 1;
         }
         
-        .stat-location {
+        .stat-box.snorkel .stat-value {
+            color: #4CAF50;
+        }
+        
+        .stat-label {
             font-size: 14px;
-            margin: 5px 0 0 0;
             color: #666;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            margin-bottom: 0;
         }
         
-        /* Updated Map Container */
-        #map {
-            width: 90%;
-            max-width: 1200px;
-            height: 650px;
-            margin: 20px auto 40px;
-            border-radius: 10px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        .filter-container {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        
+        .filter-title {
+            margin-bottom: 10px;
+            font-size: 16px;
+            color: #333;
+            font-weight: 600;
+        }
+        
+        .year-filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        
+        .year-filter {
+            background-color: #fff;
+            border: 1px solid #ddd;
+            padding: 6px 15px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+            color: #333;
+        }
+        
+        .year-filter:hover {
+            background-color: #e9ecef;
+        }
+        
+        .year-filter.active {
+            background-color: #2196F3;
+            color: white;
+            border-color: #2196F3;
+        }
+        
+        @media (max-width: 768px) {
+            .stat-box {
+                min-width: 140px;
+            }
         }
     </style>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
 </head>
 <body>
     <?php include 'navigation.php'; ?>
-    <div class="container-fluid">
-        <!-- Stats Section -->
+
+    <div class="container mt-4 mb-5">
         <div class="stats-container">
-            <a href="divelist.php" class="stat-link">
-                <div class="stat-box">
-                    <h3>Total Dives</h3>
-                    <p class="stat-value"><?php echo $totalDives; ?></p>
-                    <p>recorded in the logbook</p>
-                </div>
-            </a>
-            
+            <div class="stat-box">
+                <div class="stat-label">Total Activities</div>
+                <div class="stat-value"><?php echo $totalActivities; ?></div>
+                <div class="stat-label"><?php echo $locationCount; ?> locations</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Dive Activities</div>
+                <div class="stat-value"><?php echo $totalDives; ?></div>
+                <div class="stat-label"><?php echo round(($totalDives / max(1, $totalActivities)) * 100); ?>% of total</div>
+            </div>
+            <div class="stat-box snorkel">
+                <div class="stat-label">Snorkeling</div>
+                <div class="stat-value"><?php echo $totalSnorkeling; ?></div>
+                <div class="stat-label"><?php echo round(($totalSnorkeling / max(1, $totalActivities)) * 100); ?>% of total</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Max Depth</div>
+                <div class="stat-value"><?php echo $maxDepth; ?>m</div>
+                <div class="stat-label">deepest dive</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Average Duration</div>
+                <div class="stat-value"><?php echo $avgDuration; ?></div>
+                <div class="stat-label">minutes per activity</div>
+            </div>
             <?php if ($latestDive): ?>
-            <div class="stat-box">
-                <h3>Latest Dive</h3>
-                <p class="stat-value"><?php echo date('d M', strtotime($latestDive['date'])); ?></p>
-                <p class="stat-location"><?php echo htmlspecialchars($latestDive['location']); ?></p>
-            </div>
-            <?php endif; ?>
-            
-            <div class="stat-box">
-                <h3>Locations</h3>
-                <p class="stat-value"><?php echo $locationCount; ?></p>
-                <p>unique dive sites</p>
-            </div>
-            
-            <?php if ($deepestDive): ?>
-            <div class="stat-box">
-                <h3>Deepest Dive</h3>
-                <p class="stat-value"><?php echo $deepestDive['depth']; ?> m</p>
-                <p class="stat-location"><?php echo htmlspecialchars($deepestDive['location']); ?></p>
+            <div class="stat-box" style="border-top-color: #FF9800;">
+                <div class="stat-label">Latest Dive</div>
+                <div class="stat-value" style="color: #FF9800;"><?php echo date('M d', strtotime($latestDive['date'])); ?></div>
+                <div class="stat-label"><?php echo htmlspecialchars($latestDive['location']); ?></div>
             </div>
             <?php endif; ?>
         </div>
         
-        <!-- Map -->
         <div id="map"></div>
     </div>
     
-    <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Pass PHP data to JavaScript
-        var diveLogsData = <?php echo json_encode($diveLogsData); ?>;
-        console.log("Loaded " + diveLogsData.length + " dive log entries");
+        // Transfer PHP data to JavaScript
+        const diveLogsData = <?php echo json_encode($diveLogs); ?>;
+        
+        // Check if we should highlight a specific location from URL params
+        const highlightLat = <?php echo $highlightLat ? $highlightLat : 'null'; ?>;
+        const highlightLng = <?php echo $highlightLng ? $highlightLng : 'null'; ?>;
+        const highlightTitle = "<?php echo $highlightTitle; ?>";
     </script>
-    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
     <script src="map.js"></script>
 </body>
 </html> 

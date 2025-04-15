@@ -30,9 +30,15 @@ Done with Vibe Coding.
 - [x] write a csv importer. check if the entry exists before
 - [x] when clicking on "Drag & drop your CSV file here or click to browse" choose file I can select it in the Finder, but it will not be upolao0ded. But it works once I drag and drop it. so please check the upload functionality.
 - [x] improve marker clustering for better visibility when zoomed out
+- [x] for the Dive Log Entries add more details from the database. I like the style btw.
+- [x] change menu structure: 1) "view dive log" = rename to dive map 2) divelist 3) fish list (same style as divelist) 4) Manage Database. Once you have the four items take care that when clicking one of the pages all menues looks the same and have the same entries. also make sure there is no hamburger menu. 
+
 
 ## Recent Changes
 
+- **Enhanced Map Styling**: Improved map legend/filter background for better visibility
+- **Updated UI Elements**: Removed duplicate headings and streamlined interface
+- **Added Latest Dive**: Added latest dive information to statistics dashboard
 - **Enhanced Map Clustering**: Implemented Leaflet.markercluster for superior marker clustering
   - Dynamic clustering based on zoom level
   - Interactive cluster markers with summary popups
