@@ -166,7 +166,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
             $handle = fopen($fileTmpName, "r");
             if ($handle !== FALSE) {
                 // Read the header row
-                $headerRow = fgetcsv($handle, 1000, ",");
+                $headerRow = fgetcsv($handle, 1000, ",", "\"", "\\");
                 
                 // Start transaction for all inserts
                 $conn->begin_transaction();
@@ -175,7 +175,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
                 $importResults['total'] = 0;
                 
                 // Read each row of data
-                while (($row = fgetcsv($handle, 1000, ",")) !== FALSE) {
+                while (($row = fgetcsv($handle, 1000, ",", "\"", "\\")) !== FALSE) {
                     $rowNumber++;
                     $importResults['total']++;
                     
