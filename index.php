@@ -45,8 +45,8 @@ function getFishSightings($divelogId) {
     return $sightings;
 }
 
-// Fetch dive logs from the database
-$query = "SELECT * FROM divelogs";
+// Fetch dive logs from the database - only diving activities for statistics
+$query = "SELECT * FROM divelogs WHERE activity_type = 'diving' OR activity_type IS NULL";
 $result = $conn->query($query);
 
 // Prepare data for JavaScript
@@ -83,6 +83,7 @@ if ($result && $result->num_rows > 0) {
             'dive_site_type' => $row['dive_site_type'],
             'rating' => $row['rating'],
             'comments' => $row['comments'],
+            'activity_type' => $row['activity_type'],
             'images' => array_map(function($img) {
                 return [
                     'id' => $img['id'],
@@ -111,6 +112,71 @@ if ($result && $result->num_rows > 0) {
     }
 }
 
+// Now fetch all activities (including snorkeling) for display in map
+$allActivitiesQuery = "SELECT * FROM divelogs";
+$allResult = $conn->query($allActivitiesQuery);
+
+if ($allResult && $allResult->num_rows > 0) {
+    while ($row = $allResult->fetch_assoc()) {
+        // Skip if this is already in diveLogsData (it's a dive)
+        $isDive = false;
+        foreach ($diveLogsData as $dive) {
+            if ($dive['id'] == $row['id']) {
+                $isDive = true;
+                break;
+            }
+        }
+        
+        if (!$isDive) {
+            // Get images for this activity
+            $activityImages = getDiveImages($row['id']);
+            
+            // Get fish sightings for this activity
+            $fishSightings = getFishSightings($row['id']);
+            
+            $diveLogsData[] = [
+                'id' => $row['id'],
+                'location' => $row['location'],
+                'latitude' => $row['latitude'],
+                'longitude' => $row['longitude'],
+                'date' => $row['date'],
+                'description' => $row['description'],
+                'year' => substr($row['date'], 0, 4), // Extract year from date
+                'depth' => $row['depth'],
+                'duration' => $row['duration'],
+                'temperature' => $row['temperature'],
+                'air_temperature' => $row['air_temperature'],
+                'visibility' => $row['visibility'],
+                'buddy' => $row['buddy'],
+                'dive_site_type' => $row['dive_site_type'],
+                'rating' => $row['rating'],
+                'comments' => $row['comments'],
+                'activity_type' => $row['activity_type'],
+                'images' => array_map(function($img) {
+                    return [
+                        'id' => $img['id'],
+                        'filename' => $img['filename'],
+                        'caption' => $img['caption']
+                    ];
+                }, $activityImages),
+                'fish_sightings' => $fishSightings
+            ];
+            
+            // Collect unique years for filter
+            $year = substr($row['date'], 0, 4);
+            if (!in_array($year, $years)) {
+                $years[] = $year;
+            }
+        }
+    }
+}
+
+// Convert latitude and longitude to floats for proper handling
+foreach ($diveLogsData as $index => $diveLog) {
+    $diveLogsData[$index]['latitude'] = (float)$diveLog['latitude'];
+    $diveLogsData[$index]['longitude'] = (float)$diveLog['longitude'];
+}
+
 // Sort years in descending order
 rsort($years);
 ?>
@@ -118,8 +184,13 @@ rsort($years);
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#333333">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <title>Dive Log</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <style>
@@ -225,54 +296,65 @@ rsort($years);
     </style>
 </head>
 <body>
-    <nav class="menu">
-        <a href="index.php" class="active">View Dive Log</a>
-        <a href="populate_db.php">Manage Dives</a>
-        <a href="fish_manager.php">Fish Species</a>
-        <a href="manage_db.php">Manage Database</a>
-    </nav>
-    <h1>Dive Log</h1>
-    
-    <div class="stats-container">
-        <div class="stat-box">
-            <h3>Total Dives</h3>
-            <p class="stat-value"><?php echo $totalDives; ?></p>
+    <?php include 'navigation.php'; ?>
+    <div class="container-fluid">
+        <h1 class="text-center my-3">Dive Log</h1>
+        
+        <div class="stats-container row">
+            <div class="col-6 col-md-3 mb-3">
+                <div class="stat-box">
+                    <h3>Total Dives</h3>
+                    <p class="stat-value"><?php echo $totalDives; ?></p>
+                    <p class="stat-note">(Snorkeling not included)</p>
+                </div>
+            </div>
+            <?php if ($latestDive): ?>
+            <div class="col-6 col-md-3 mb-3">
+                <div class="stat-box">
+                    <h3>Latest Dive</h3>
+                    <p class="stat-value"><?php echo date('M d, Y', strtotime($latestDive['date'])); ?></p>
+                    <p class="stat-location"><?php echo htmlspecialchars($latestDive['location']); ?></p>
+                    <p class="stat-note">(Diving only)</p>
+                </div>
+            </div>
+            <?php endif; ?>
+            <?php if ($deepestDive && !empty($deepestDive['depth'])): ?>
+            <div class="col-6 col-md-3 mb-3">
+                <div class="stat-box">
+                    <h3>Deepest Dive</h3>
+                    <p class="stat-value"><?php echo $deepestDive['depth']; ?> m</p>
+                    <p class="stat-location"><?php echo htmlspecialchars($deepestDive['location']); ?></p>
+                </div>
+            </div>
+            <?php endif; ?>
+            <div class="col-6 col-md-3 mb-3">
+                <div class="stat-box">
+                    <h3>Dive Locations</h3>
+                    <p class="stat-value"><?php echo count(array_unique(array_column($diveLogsData, 'location'))); ?></p>
+                    <p class="stat-note">(Diving only)</p>
+                </div>
+            </div>
         </div>
-        <?php if ($latestDive): ?>
-        <div class="stat-box">
-            <h3>Latest Dive</h3>
-            <p class="stat-value"><?php echo date('M d, Y', strtotime($latestDive['date'])); ?></p>
-            <p class="stat-location"><?php echo htmlspecialchars($latestDive['location']); ?></p>
+        
+        <div class="filter-container">
+            <h3>Filter by Year:</h3>
+            <div class="year-filters">
+                <button class="year-filter active" data-year="all">All Years</button>
+                <?php foreach ($years as $year): ?>
+                <button class="year-filter" data-year="<?php echo $year; ?>"><?php echo $year; ?></button>
+                <?php endforeach; ?>
+            </div>
         </div>
-        <?php endif; ?>
-        <?php if ($deepestDive && !empty($deepestDive['depth'])): ?>
-        <div class="stat-box">
-            <h3>Deepest Dive</h3>
-            <p class="stat-value"><?php echo $deepestDive['depth']; ?> m</p>
-            <p class="stat-location"><?php echo htmlspecialchars($deepestDive['location']); ?></p>
-        </div>
-        <?php endif; ?>
-        <div class="stat-box">
-            <h3>Number of Locations</h3>
-            <p class="stat-value"><?php echo count(array_unique(array_column($diveLogsData, 'location'))); ?></p>
-        </div>
+        
+        <div id="map"></div>
     </div>
     
-    <div class="filter-container">
-        <h3>Filter by Year:</h3>
-        <div class="year-filters">
-            <button class="year-filter active" data-year="all">All Years</button>
-            <?php foreach ($years as $year): ?>
-            <button class="year-filter" data-year="<?php echo $year; ?>"><?php echo $year; ?></button>
-            <?php endforeach; ?>
-        </div>
-    </div>
-    
-    <div id="map" style="height: 600px;"></div>
-    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Pass PHP data to JavaScript
         var diveLogsData = <?php echo json_encode($diveLogsData); ?>;
+        console.log("Loaded " + diveLogsData.length + " dive log entries");
     </script>
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="script.js"></script>

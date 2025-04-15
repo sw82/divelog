@@ -25,7 +25,7 @@ Done with Vibe Coding.
 - [x] check for security. also if I add this to git I don't want any personla information in it
 - [x] add to the readme all steps needed to set up the project (database, webserver etc.)
 - [x] mobile first implementation. everything needs to be super responsive. if needed use the best framework for this.
-- [ ] check all sub pages if the menu and navigation is right and the hierachy
+- [x] check all sub pages if the menu and navigation is right and the hierachy. I see different menues in different subpages. normalize this
 - [x] check if the export csv function is still correct and according to the latest database style.
 
 ## Project Changes
