@@ -17,11 +17,12 @@ foreach ($dbStatus['messages'] as $message) {
     echo $message;
 }
 
-// Fetch entry for editing if in edit mode
+// Fetch entry for editing or viewing if in edit/view mode
 $editEntry = null;
 $diveImages = [];
 $diveFishSightings = [];
 $editMode = false;
+$viewMode = false;
 
 if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
     $id = $_GET['edit'];
@@ -36,6 +37,21 @@ if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
         // Fetch fish sightings for this dive log
         $diveFishSightings = getDiveFishSightings($id);
         $editMode = true;
+    }
+    $stmt->close();
+} else if (isset($_GET['view']) && is_numeric($_GET['view'])) {
+    $id = $_GET['view'];
+    $stmt = $conn->prepare("SELECT * FROM divelogs WHERE id = ?");
+    $stmt->bind_param("i", $id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    if ($result->num_rows > 0) {
+        $editEntry = $result->fetch_assoc();
+        // Fetch images for this dive log
+        $diveImages = getDiveImages($id);
+        // Fetch fish sightings for this dive log
+        $diveFishSightings = getDiveFishSightings($id);
+        $viewMode = true;
     }
     $stmt->close();
 }
@@ -533,10 +549,181 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
             <?php endif; ?>
         </div>
 
-        <?php if (isset($editEntry)): ?>
+        <?php if (isset($editEntry) && $editMode): ?>
         <div class="container">
             <h2>Edit Dive Log Entry</h2>
             <?php include 'edit_dive_form.php'; ?>
+        </div>
+        <?php elseif (isset($editEntry) && $viewMode): ?>
+        <div class="container">
+            <h2>View Dive Log Entry</h2>
+            <div class="view-dive-container">
+                <!-- Display dive details in view-only mode -->
+                <div class="dive-header">
+                    <h3><?php echo htmlspecialchars($editEntry['location']); ?></h3>
+                    <div class="dive-date"><?php echo date('F j, Y', strtotime($editEntry['date'])); ?></div>
+                    
+                    <?php if (!empty($editEntry['rating'])): ?>
+                    <div class="dive-rating">
+                        <?php 
+                        for ($i = 1; $i <= 5; $i++) {
+                            echo $i <= $editEntry['rating'] ? '<i class="fas fa-star"></i>' : '<i class="far fa-star"></i>';
+                        }
+                        ?>
+                    </div>
+                    <?php endif; ?>
+                </div>
+                
+                <div class="dive-details-grid">
+                    <?php if (!empty($editEntry['depth'])): ?>
+                    <div class="detail-item">
+                        <i class="fas fa-arrow-down"></i>
+                        <div class="detail-content">
+                            <div class="detail-label">Depth</div>
+                            <div class="detail-value"><?php echo $editEntry['depth']; ?> m</div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                    
+                    <?php if (!empty($editEntry['duration'])): ?>
+                    <div class="detail-item">
+                        <i class="fas fa-clock"></i>
+                        <div class="detail-content">
+                            <div class="detail-label">Duration</div>
+                            <div class="detail-value"><?php echo $editEntry['duration']; ?> min</div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                    
+                    <?php if (!empty($editEntry['temperature'])): ?>
+                    <div class="detail-item">
+                        <i class="fas fa-temperature-low"></i>
+                        <div class="detail-content">
+                            <div class="detail-label">Water Temp</div>
+                            <div class="detail-value"><?php echo $editEntry['temperature']; ?> °C</div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                    
+                    <?php if (!empty($editEntry['air_temperature'])): ?>
+                    <div class="detail-item">
+                        <i class="fas fa-sun"></i>
+                        <div class="detail-content">
+                            <div class="detail-label">Air Temp</div>
+                            <div class="detail-value"><?php echo $editEntry['air_temperature']; ?> °C</div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                    
+                    <?php if (!empty($editEntry['visibility'])): ?>
+                    <div class="detail-item">
+                        <i class="fas fa-eye"></i>
+                        <div class="detail-content">
+                            <div class="detail-label">Visibility</div>
+                            <div class="detail-value"><?php echo $editEntry['visibility']; ?> m</div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                    
+                    <?php if (!empty($editEntry['dive_site_type'])): ?>
+                    <div class="detail-item">
+                        <i class="fas fa-tag"></i>
+                        <div class="detail-content">
+                            <div class="detail-label">Site Type</div>
+                            <div class="detail-value"><?php echo htmlspecialchars($editEntry['dive_site_type']); ?></div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                    
+                    <?php if (!empty($editEntry['buddy'])): ?>
+                    <div class="detail-item">
+                        <i class="fas fa-user"></i>
+                        <div class="detail-content">
+                            <div class="detail-label">Buddy</div>
+                            <div class="detail-value"><?php echo htmlspecialchars($editEntry['buddy']); ?></div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                    
+                    <?php if (!empty($editEntry['activity_type'])): ?>
+                    <div class="detail-item">
+                        <i class="fas fa-water"></i>
+                        <div class="detail-content">
+                            <div class="detail-label">Activity Type</div>
+                            <div class="detail-value"><?php echo ucfirst(htmlspecialchars($editEntry['activity_type'])); ?></div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                </div>
+                
+                <?php if (!empty($editEntry['description'])): ?>
+                <div class="section-title"><i class="fas fa-info-circle"></i> Description</div>
+                <div class="dive-description"><?php echo nl2br(htmlspecialchars($editEntry['description'])); ?></div>
+                <?php endif; ?>
+                
+                <?php if (!empty($editEntry['comments'])): ?>
+                <div class="section-title"><i class="fas fa-comment"></i> Comments</div>
+                <div class="dive-comments"><?php echo nl2br(htmlspecialchars($editEntry['comments'])); ?></div>
+                <?php endif; ?>
+                
+                <?php if (!empty($diveImages)): ?>
+                <div class="section-title"><i class="fas fa-images"></i> Images</div>
+                <div class="image-gallery">
+                    <?php foreach ($diveImages as $image): ?>
+                    <div class="image-item">
+                        <img src="uploads/diveimages/<?php echo htmlspecialchars($image['filename']); ?>" alt="Dive photo">
+                        <?php if (!empty($image['caption'])): ?>
+                        <div class="image-caption"><?php echo htmlspecialchars($image['caption']); ?></div>
+                        <?php endif; ?>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+                <?php endif; ?>
+                
+                <?php if (!empty($diveFishSightings)): ?>
+                <div class="section-title"><i class="fas fa-fish"></i> Fish Sightings</div>
+                <div class="fish-sightings-list">
+                    <table class="fish-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 30px;"></th>
+                                <th>Fish Species</th>
+                                <th>Date</th>
+                                <th>Quantity</th>
+                                <th>Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($diveFishSightings as $sighting): ?>
+                                <tr>
+                                    <td>
+                                        <?php if ($sighting['fish_image']): ?>
+                                            <img src="uploads/fishimages/<?php echo $sighting['fish_image']; ?>" alt="<?php echo htmlspecialchars($sighting['common_name']); ?>" class="fish-thumbnail">
+                                        <?php else: ?>
+                                            <div class="fish-thumbnail-placeholder"></div>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <strong><?php echo htmlspecialchars($sighting['common_name']); ?></strong>
+                                        <?php if ($sighting['scientific_name']): ?>
+                                            <div class="scientific-name"><?php echo htmlspecialchars($sighting['scientific_name']); ?></div>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><?php echo date('M d, Y', strtotime($sighting['sighting_date'])); ?></td>
+                                    <td><?php echo ucfirst(htmlspecialchars($sighting['quantity'] ?? 'N/A')); ?></td>
+                                    <td><?php echo htmlspecialchars($sighting['notes'] ?? ''); ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <?php endif; ?>
+                
+                <div class="form-buttons">
+                    <a href="edit_dive.php?id=<?php echo $editEntry['id']; ?>" class="btn edit">Edit This Dive</a>
+                    <a href="divelist.php" class="btn" style="background-color: #777;">Back to Dive List</a>
+                </div>
+            </div>
         </div>
         <?php endif; ?>
     </div>
