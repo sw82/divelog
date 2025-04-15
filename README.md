@@ -32,6 +32,9 @@ Done with Vibe Coding.
 - [x] improve marker clustering for better visibility when zoomed out
 - [x] for the Dive Log Entries add more details from the database. I like the style btw.
 - [x] change menu structure: 1) "view dive log" = rename to dive map 2) divelist 3) fish list (same style as divelist) 4) Manage Database. Once you have the four items take care that when clicking one of the pages all menues looks the same and have the same entries. also make sure there is no hamburger menu. 
+- [x] edit dives must work. each part where you can edit a dive must jump to the divelist in an edit mode. also the edit function in the divelist does not work
+- [ ] if in a csv import you only have a location, but no lat len this is okay and should be reverse geocoded internally. the functionally is there anyways. 
+- [ ] refactor and delete files not needed
 
 
 ## Recent Changes
