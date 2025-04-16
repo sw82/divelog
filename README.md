@@ -34,11 +34,16 @@ Done with Vibe Coding.
 - [x] change menu structure: 1) "view dive log" = rename to dive map 2) divelist 3) fish list (same style as divelist) 4) Manage Database. Once you have the four items take care that when clicking one of the pages all menues looks the same and have the same entries. also make sure there is no hamburger menu. 
 - [x] edit dives must work. each part where you can edit a dive must jump to the divelist in an edit mode. also the edit function in the divelist does not work
 - [x] if in a csv import you only have a location, but no lat len this is okay and should be reverse geocoded internally. the functionally is there anyways. 
-- [ ] refactor and delete files not needed
+- [ ] refactor carefully and delete files not needed
 
 
 ## Recent Changes
 
+- **Improved CSV Import**: 
+  - Added automatic detection of CSV delimiters (comma or semicolon)
+  - Enhanced empty row detection to skip blank lines
+  - Added support for European number formats (using comma as decimal separator)
+  - Improved error messages for more user-friendly troubleshooting
 - **Added Dive Site Name Field**: Added specific dive site name field separate from location
 - **CSV Import Geocoding**: Added automatic geocoding for CSV imports with location but no coordinates
 - **CSV Export/Import Updates**: Updated CSV template with clearer field requirements

@@ -46,15 +46,15 @@ function parseCSVRow($row) {
     if (isset($row[0])) $diveLog['id'] = $row[0];
     if (isset($row[1])) $diveLog['location'] = $row[1];
     if (isset($row[2])) $diveLog['dive_site'] = $row[2];
-    if (isset($row[3])) $diveLog['latitude'] = floatval($row[3]);
-    if (isset($row[4])) $diveLog['longitude'] = floatval($row[4]);
+    if (isset($row[3])) $diveLog['latitude'] = floatval(str_replace(',', '.', $row[3])); // Handle European number format
+    if (isset($row[4])) $diveLog['longitude'] = floatval(str_replace(',', '.', $row[4])); // Handle European number format
     if (isset($row[5])) $diveLog['date'] = $row[5];
     if (isset($row[6])) $diveLog['dive_time'] = $row[6];
     if (isset($row[7])) $diveLog['description'] = $row[7];
-    if (isset($row[8]) && $row[8] !== '') $diveLog['depth'] = floatval($row[8]);
+    if (isset($row[8]) && $row[8] !== '') $diveLog['depth'] = floatval(str_replace(',', '.', $row[8])); // Handle European number format
     if (isset($row[9]) && $row[9] !== '') $diveLog['duration'] = intval($row[9]);
-    if (isset($row[10]) && $row[10] !== '') $diveLog['temperature'] = floatval($row[10]);
-    if (isset($row[11]) && $row[11] !== '') $diveLog['air_temperature'] = floatval($row[11]);
+    if (isset($row[10]) && $row[10] !== '') $diveLog['temperature'] = floatval(str_replace(',', '.', $row[10])); // Handle European number format
+    if (isset($row[11]) && $row[11] !== '') $diveLog['air_temperature'] = floatval(str_replace(',', '.', $row[11])); // Handle European number format
     if (isset($row[12]) && $row[12] !== '') $diveLog['visibility'] = intval($row[12]);
     if (isset($row[13])) $diveLog['buddy'] = $row[13];
     if (isset($row[14])) $diveLog['dive_site_type'] = $row[14];
@@ -72,13 +72,13 @@ function validateDiveLog($diveLog) {
     
     // Required fields
     if (empty($diveLog['location'])) {
-        $errors[] = "Location is required";
+        $errors[] = "Location is missing - please provide a location name";
     }
     
     if (empty($diveLog['date'])) {
-        $errors[] = "Date is required";
+        $errors[] = "Date is missing - please provide a date in YYYY-MM-DD format";
     } else if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $diveLog['date'])) {
-        $errors[] = "Date format should be YYYY-MM-DD";
+        $errors[] = "Date format is incorrect - please use YYYY-MM-DD format";
     }
     
     // If both latitude and longitude are 0 or empty, try to geocode the location
@@ -97,10 +97,10 @@ function validateDiveLog($diveLog) {
                 $diveLog['latitude'] = $coordinates['latitude'];
                 $diveLog['longitude'] = $coordinates['longitude'];
             } else {
-                $errors[] = "Could not geocode location. Please provide latitude and longitude manually.";
+                $errors[] = "Could not find coordinates for '{$diveLog['location']}' - please provide latitude and longitude manually or check the spelling";
             }
         } else {
-            $errors[] = "Valid latitude and longitude are required when location is not provided";
+            $errors[] = "Coordinates are required when location is not provided";
         }
     }
     
@@ -187,8 +187,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
             // Open the CSV file
             $handle = fopen($fileTmpName, "r");
             if ($handle !== FALSE) {
+                // Detect delimiter by examining the first line
+                $firstLine = fgets($handle);
+                rewind($handle); // Go back to start of file
+                
+                // Check for common delimiters
+                $delimiter = ','; // Default
+                if (substr_count($firstLine, ';') > substr_count($firstLine, ',')) {
+                    $delimiter = ';';
+                }
+                
                 // Read the header row
-                $headerRow = fgetcsv($handle, 1000, ",", "\"", "\\");
+                $headerRow = fgetcsv($handle, 1000, $delimiter, "\"", "\\");
                 
                 // Start transaction for all inserts
                 $conn->begin_transaction();
@@ -197,8 +207,27 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
                 $importResults['total'] = 0;
                 
                 // Read each row of data
-                while (($row = fgetcsv($handle, 1000, ",", "\"", "\\")) !== FALSE) {
+                while (($row = fgetcsv($handle, 1000, $delimiter, "\"", "\\")) !== FALSE) {
                     $rowNumber++;
+                    
+                    // Check if row is empty or just contains whitespace
+                    if (!$row || count($row) <= 1) {
+                        continue; // Skip this row
+                    }
+                    
+                    // Better empty row check - see if all cells are empty
+                    $isEmpty = true;
+                    foreach ($row as $cell) {
+                        if (trim($cell) !== '') {
+                            $isEmpty = false;
+                            break;
+                        }
+                    }
+                    
+                    if ($isEmpty) {
+                        continue; // Skip this row and proceed to the next one
+                    }
+                    
                     $importResults['total']++;
                     
                     // Parse the CSV row
@@ -217,7 +246,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
                     // Check if dive log already exists
                     if (diveLogExists($conn, $diveLog['location'], $diveLog['date'], $diveLog['latitude'], $diveLog['longitude'])) {
                         $importResults['skipped']++;
-                        $importResults['success'][] = "Row $rowNumber: Skipped - dive log already exists for {$diveLog['location']} on {$diveLog['date']}";
+                        $importResults['success'][] = "Row $rowNumber: Skipped - a dive at {$diveLog['location']} on {$diveLog['date']} already exists in your log";
                         continue;
                     }
                     
@@ -225,7 +254,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
                     $insertResult = insertDiveLog($conn, $diveLog);
                     if ($insertResult['success']) {
                         $importResults['imported']++;
-                        $importResults['success'][] = "Row $rowNumber: Successfully imported {$diveLog['location']} on {$diveLog['date']}";
+                        $importResults['success'][] = "Row $rowNumber: Successfully imported dive at {$diveLog['location']} on {$diveLog['date']}";
                     } else {
                         $importResults['errors'][] = "Row $rowNumber: Database error - " . $insertResult['error'];
                     }
