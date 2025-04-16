@@ -14,10 +14,11 @@ try {
         throw new Exception("Database connection failed");
     }
     
-    // Query to get all dive logs with coordinates
+    // Query to get all dive logs with coordinates and more detailed information
     $query = "SELECT id, location, date as dive_date, rating, depth as max_depth, duration, 
-                     latitude, longitude, activity_type, 
-                     YEAR(date) as year
+                     latitude, longitude, activity_type, temperature, visibility, 
+                     air_temperature, dive_site_type, buddy, description, comments,
+                     YEAR(date) as year, dive_site
               FROM divelogs
               WHERE latitude IS NOT NULL AND longitude IS NOT NULL
               ORDER BY date DESC";
@@ -38,7 +39,7 @@ try {
     
     // For each dive log, get images and fish sightings
     foreach ($divelogs as $dive) {
-        // Format the data
+        // Format the data with all available fields
         $formatted_dive = [
             'id' => $dive['id'],
             'location' => $dive['location'],
@@ -49,11 +50,19 @@ try {
             'duration' => $dive['duration'],
             'latitude' => $dive['latitude'],
             'longitude' => $dive['longitude'],
-            'activity_type' => $dive['activity_type'] ?: 'diving'
+            'activity_type' => $dive['activity_type'] ?: 'diving',
+            'temperature' => $dive['temperature'],
+            'visibility' => $dive['visibility'],
+            'air_temperature' => $dive['air_temperature'],
+            'dive_site_type' => $dive['dive_site_type'],
+            'buddy' => $dive['buddy'],
+            'description' => $dive['description'],
+            'comments' => $dive['comments'],
+            'dive_site' => $dive['dive_site'] ?? ''
         ];
         
         // Get dive images
-        $imagesQuery = "SELECT filename FROM divelog_images WHERE divelog_id = ?";
+        $imagesQuery = "SELECT id, filename, caption, upload_date FROM divelog_images WHERE divelog_id = ? ORDER BY upload_date DESC";
         $imagesStmt = $conn->prepare($imagesQuery);
         $imagesStmt->bind_param("i", $dive['id']);
         $imagesStmt->execute();
@@ -66,16 +75,18 @@ try {
         
         $formatted_dive['images'] = $images;
         
-        // Get fish sightings
+        // Get fish sightings with more details
         $sightingsQuery = "SELECT fs.id as sighting_id, fs.fish_species_id, 
                                   fs.sighting_date, fs.quantity, fs.notes,
-                                  fsp.common_name, fsp.scientific_name, 
+                                  fsp.common_name, fsp.scientific_name, fsp.description as fish_description,
+                                  fsp.habitat, fsp.size_range,
                                   (SELECT filename FROM fish_images 
                                    WHERE fish_species_id = fs.fish_species_id AND is_primary = 1
                                    LIMIT 1) as image_path
                            FROM fish_sightings fs
                            JOIN fish_species fsp ON fs.fish_species_id = fsp.id
-                           WHERE fs.divelog_id = ?";
+                           WHERE fs.divelog_id = ?
+                           ORDER BY fs.sighting_date DESC";
         
         $sightingsStmt = $conn->prepare($sightingsQuery);
         $sightingsStmt->bind_param("i", $dive['id']);

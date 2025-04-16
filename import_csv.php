@@ -38,28 +38,30 @@ function parseCSVRow($row) {
         'activity_type' => 'diving',
         'rating' => null,
         'comments' => '',
-        'fish_sightings' => ''
+        'fish_sightings' => '',
+        'dive_site' => ''
     ];
     
     // Map CSV columns to database fields
     if (isset($row[0])) $diveLog['id'] = $row[0];
     if (isset($row[1])) $diveLog['location'] = $row[1];
-    if (isset($row[2])) $diveLog['latitude'] = floatval($row[2]);
-    if (isset($row[3])) $diveLog['longitude'] = floatval($row[3]);
-    if (isset($row[4])) $diveLog['date'] = $row[4];
-    if (isset($row[5])) $diveLog['dive_time'] = $row[5];
-    if (isset($row[6])) $diveLog['description'] = $row[6];
-    if (isset($row[7]) && $row[7] !== '') $diveLog['depth'] = floatval($row[7]);
-    if (isset($row[8]) && $row[8] !== '') $diveLog['duration'] = intval($row[8]);
-    if (isset($row[9]) && $row[9] !== '') $diveLog['temperature'] = floatval($row[9]);
-    if (isset($row[10]) && $row[10] !== '') $diveLog['air_temperature'] = floatval($row[10]);
-    if (isset($row[11]) && $row[11] !== '') $diveLog['visibility'] = intval($row[11]);
-    if (isset($row[12])) $diveLog['buddy'] = $row[12];
-    if (isset($row[13])) $diveLog['dive_site_type'] = $row[13];
-    if (isset($row[14])) $diveLog['activity_type'] = $row[14];
-    if (isset($row[15]) && $row[15] !== '') $diveLog['rating'] = intval($row[15]);
-    if (isset($row[16])) $diveLog['comments'] = $row[16];
-    if (isset($row[17])) $diveLog['fish_sightings'] = $row[17];
+    if (isset($row[2])) $diveLog['dive_site'] = $row[2];
+    if (isset($row[3])) $diveLog['latitude'] = floatval($row[3]);
+    if (isset($row[4])) $diveLog['longitude'] = floatval($row[4]);
+    if (isset($row[5])) $diveLog['date'] = $row[5];
+    if (isset($row[6])) $diveLog['dive_time'] = $row[6];
+    if (isset($row[7])) $diveLog['description'] = $row[7];
+    if (isset($row[8]) && $row[8] !== '') $diveLog['depth'] = floatval($row[8]);
+    if (isset($row[9]) && $row[9] !== '') $diveLog['duration'] = intval($row[9]);
+    if (isset($row[10]) && $row[10] !== '') $diveLog['temperature'] = floatval($row[10]);
+    if (isset($row[11]) && $row[11] !== '') $diveLog['air_temperature'] = floatval($row[11]);
+    if (isset($row[12]) && $row[12] !== '') $diveLog['visibility'] = intval($row[12]);
+    if (isset($row[13])) $diveLog['buddy'] = $row[13];
+    if (isset($row[14])) $diveLog['dive_site_type'] = $row[14];
+    if (isset($row[15])) $diveLog['activity_type'] = $row[15];
+    if (isset($row[16]) && $row[16] !== '') $diveLog['rating'] = intval($row[16]);
+    if (isset($row[17])) $diveLog['comments'] = $row[17];
+    if (isset($row[18])) $diveLog['fish_sightings'] = $row[18];
     
     return $diveLog;
 }
@@ -79,8 +81,27 @@ function validateDiveLog($diveLog) {
         $errors[] = "Date format should be YYYY-MM-DD";
     }
     
-    if ($diveLog['latitude'] == 0 && $diveLog['longitude'] == 0) {
-        $errors[] = "Valid latitude and longitude are required";
+    // If both latitude and longitude are 0 or empty, try to geocode the location
+    if (($diveLog['latitude'] == 0 && $diveLog['longitude'] == 0) || 
+        (empty($diveLog['latitude']) && empty($diveLog['longitude']))) {
+        
+        // Only attempt geocoding if we have a location
+        if (!empty($diveLog['location'])) {
+            // Include geocoding function if not already included
+            if (!function_exists('geocodeAddress')) {
+                require_once 'divelog_functions.php';
+            }
+            
+            $coordinates = geocodeAddress($diveLog['location']);
+            if ($coordinates !== false) {
+                $diveLog['latitude'] = $coordinates['latitude'];
+                $diveLog['longitude'] = $coordinates['longitude'];
+            } else {
+                $errors[] = "Could not geocode location. Please provide latitude and longitude manually.";
+            }
+        } else {
+            $errors[] = "Valid latitude and longitude are required when location is not provided";
+        }
     }
     
     // Validate activity_type
@@ -95,7 +116,7 @@ function validateDiveLog($diveLog) {
         $errors[] = "Rating must be between 1 and 5";
     }
     
-    return $errors;
+    return [$errors, $diveLog];
 }
 
 // Function to insert dive log into database
@@ -103,11 +124,11 @@ function insertDiveLog($conn, $diveLog) {
     $stmt = $conn->prepare("INSERT INTO divelogs (
         location, latitude, longitude, date, dive_time, description, 
         depth, duration, temperature, air_temperature, visibility, 
-        buddy, dive_site_type, activity_type, rating, comments
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        buddy, dive_site_type, activity_type, rating, comments, dive_site
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
     
     $stmt->bind_param(
-        "sddsssddddisssis", 
+        "sddsssddddisssiss", 
         $diveLog['location'], 
         $diveLog['latitude'], 
         $diveLog['longitude'], 
@@ -123,7 +144,8 @@ function insertDiveLog($conn, $diveLog) {
         $diveLog['dive_site_type'], 
         $diveLog['activity_type'], 
         $diveLog['rating'], 
-        $diveLog['comments']
+        $diveLog['comments'],
+        $diveLog['dive_site']
     );
     
     $success = $stmt->execute();
@@ -183,7 +205,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
                     $diveLog = parseCSVRow($row);
                     
                     // Validate the data
-                    $validationErrors = validateDiveLog($diveLog);
+                    $validationResult = validateDiveLog($diveLog);
+                    $validationErrors = $validationResult[0];
+                    $diveLog = $validationResult[1]; // This may contain updated coordinates from geocoding
+                    
                     if (!empty($validationErrors)) {
                         $importResults['errors'][] = "Row $rowNumber: " . implode("; ", $validationErrors);
                         continue;
@@ -294,10 +319,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
             <p>Upload a CSV file containing dive log information. The CSV should have the following columns:</p>
             <ol>
                 <li>ID (leave empty - this is automatically generated by the database)</li>
-                <li>Location (required)</li>
-                <li>Latitude (required)</li>
-                <li>Longitude (required)</li>
-                <li>Date (required, format: YYYY-MM-DD)</li>
+                <li><strong>Location (required)</strong> - City, country, or dive site region</li>
+                <li>Dive Site - Specific name of the dive site</li>
+                <li>Latitude - GPS coordinate (if empty but location is provided, geocoding will be attempted)</li>
+                <li>Longitude - GPS coordinate (if empty but location is provided, geocoding will be attempted)</li>
+                <li><strong>Date (required, format: YYYY-MM-DD)</strong></li>
                 <li>Time (optional)</li>
                 <li>Description (optional)</li>
                 <li>Depth in meters (optional)</li>
@@ -312,7 +338,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
                 <li>Comments (optional)</li>
                 <li>Fish Sightings (optional, will be ignored during import)</li>
             </ol>
-            <p>You can download a template CSV file with the correct format and sample data to help you get started.</p>
+            <p>You can download a template CSV file with the correct format and sample data to help you get started. <strong>Note:</strong> If you don't provide latitude/longitude coordinates, the system will attempt to automatically geocode them based on the location name.</p>
             <a href="csv_template.php" class="download-template">Download Template CSV</a>
         </div>
         

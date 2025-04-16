@@ -515,7 +515,8 @@ function initDatabaseTables() {
             buddy VARCHAR(255) COMMENT 'Dive partner name',
             dive_site_type VARCHAR(100) COMMENT 'Type of dive site',
             rating INT COMMENT 'Dive rating 1-5',
-            comments TEXT COMMENT 'Additional comments'
+            comments TEXT COMMENT 'Additional comments',
+            dive_site VARCHAR(255) COMMENT 'Name of the specific dive site'
         )";
         
         if ($conn->query($createTable) === TRUE) {

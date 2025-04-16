@@ -41,6 +41,7 @@ $output = fopen('php://output', 'w');
 fputcsv($output, [
     'ID',
     'Location',
+    'Dive Site',
     'Latitude',
     'Longitude',
     'Date',
@@ -87,6 +88,7 @@ if ($result && $result->num_rows > 0) {
         fputcsv($output, [
             $row['id'],
             $row['location'],
+            $row['dive_site'] ?? '',
             $row['latitude'],
             $row['longitude'],
             $row['date'],
