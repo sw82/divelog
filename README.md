@@ -35,12 +35,16 @@ Done with Vibe Coding.
 - [x] edit dives must work. each part where you can edit a dive must jump to the divelist in an edit mode. also the edit function in the divelist does not work
 - [x] if in a csv import you only have a location, but no lat len this is okay and should be reverse geocoded internally. the functionally is there anyways. 
 - [ ] refactor carefully and delete files not needed
-- [ ] when uploading to git repo never upload my custom database entries. only the sample data
+- [x] when uploading to git repo never upload my custom database entries. only the sample data
 - [ ] security check that you cannot accidentally remove the database or make sql injections
 
 
 ## Recent Changes
 
+- **Enhanced Data Privacy**:
+  - Added .gitignore rules to prevent database backups from being uploaded
+  - Configured separate .gitignore in backups directory for SQL files
+  - Protected sensitive configuration files from accidental commits
 - **Fixed File Upload Issues**:
   - Fixed file input handling for CSV import to prevent double-click requirement
   - Improved UX for file selection with proper styling
