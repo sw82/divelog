@@ -326,10 +326,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
             text-align: center;
             margin-bottom: 15px;
             cursor: pointer;
+            position: relative;
         }
         .file-drop-area.active {
             border-color: #2196F3;
             background-color: rgba(33, 150, 243, 0.1);
+        }
+        /* Style for the file input to make it invisible but accessible */
+        #csv_file {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            opacity: 0;
+            cursor: pointer;
+            z-index: 2;
         }
         .download-template {
             margin-top: 10px;
@@ -442,9 +454,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
                 }
             });
             
-            // File drop functionality
-            fileDropArea.addEventListener('click', function() {
-                fileInput.click();
+            // Prevent the default click behavior since the input is now overlaying the entire drop area
+            fileDropArea.addEventListener('click', function(e) {
+                // We no longer need this since the input is now over the entire drop area
+                // fileInput.click();
+                
+                // Don't need to do anything as the input itself will capture the click
+                // but we'll stop propagation just to be safe
+                // e.stopPropagation();
             });
             
             fileDropArea.addEventListener('dragover', function(e) {
