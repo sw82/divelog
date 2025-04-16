@@ -348,8 +348,39 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
 
 // Handle clearing all data
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == 'clear') {
-    $conn->query("TRUNCATE TABLE divelogs");
-    echo "<div class='success'>All dive logs have been cleared.</div>";
+    // Enhanced security: Only proceed if explicitly confirmed with verification code
+    if (isset($_POST['verification_code']) && $_POST['verification_code'] === 'DELETE ALL LOGS') {
+        try {
+            // Start transaction
+            $conn->begin_transaction();
+            
+            // Delete data from related tables in the correct order to respect foreign key constraints
+            $tables = [
+                'fish_sightings',
+                'divelog_images',
+                'divelogs'
+            ];
+            
+            foreach ($tables as $table) {
+                $stmt = $conn->prepare("TRUNCATE TABLE $table");
+                if (!$stmt->execute()) {
+                    throw new Exception("Error clearing table $table: " . $conn->error);
+                }
+                $stmt->close();
+            }
+            
+            // Commit transaction
+            $conn->commit();
+            $clearSuccessMessage = "All dive logs have been cleared successfully.";
+        } catch (Exception $e) {
+            // Rollback on error
+            $conn->rollback();
+            $clearErrorMessage = "Error: " . $e->getMessage();
+        }
+    } else {
+        // Show verification form
+        $showClearVerificationForm = true;
+    }
 }
 
 // ==========================================
@@ -364,6 +395,33 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dive Log Management</title>
     <link rel="stylesheet" href="style.css">
+    <style>
+        .danger:hover {
+            background-color: #c62828;
+        }
+        .warning-box {
+            background-color: #fff3e0;
+            border: 2px solid #ff9800;
+            border-radius: 4px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .warning-box h3 {
+            color: #ff5722;
+            margin-top: 0;
+        }
+        .verification-form {
+            margin-top: 20px;
+        }
+        .verification-form input[type="text"] {
+            padding: 10px;
+            width: 100%;
+            border: 2px solid #f44336;
+            border-radius: 4px;
+            font-size: 16px;
+            margin: 10px 0;
+        }
+    </style>
 </head>
 <body>
     <?php include 'navigation.php'; ?>
@@ -392,10 +450,35 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
             
             <br>
             
-            <form method="post" onsubmit="return confirm('Are you sure you want to clear all dive logs?');">
-                <input type="hidden" name="action" value="clear">
-                <button type="submit" class="danger">Clear All Data</button>
-            </form>
+            <?php if (isset($showClearVerificationForm) && $showClearVerificationForm): ?>
+                <div class="warning-box">
+                    <h3>⚠️ DANGER: Confirm Data Deletion</h3>
+                    <p>You are about to delete <strong>ALL DIVE LOGS</strong> from your database. This action cannot be undone unless you have a backup.</p>
+                    
+                    <form method="post" class="verification-form">
+                        <input type="hidden" name="action" value="clear">
+                        <div class="form-group">
+                            <label for="verification_code">To confirm, type <strong>DELETE ALL LOGS</strong> in the box below:</label>
+                            <input type="text" id="verification_code" name="verification_code" required autocomplete="off">
+                        </div>
+                        <button type="submit" class="danger">I understand the consequences, delete all logs</button>
+                        <a href="populate_db.php" class="btn">Cancel</a>
+                    </form>
+                </div>
+            <?php else: ?>
+                <form method="post" onsubmit="return confirm('Are you sure you want to clear all dive logs?');">
+                    <input type="hidden" name="action" value="clear">
+                    <button type="submit" class="danger">Clear All Data</button>
+                </form>
+            <?php endif; ?>
+            
+            <?php if (isset($clearSuccessMessage)): ?>
+                <div class="success"><?php echo $clearSuccessMessage; ?></div>
+            <?php endif; ?>
+            
+            <?php if (isset($clearErrorMessage)): ?>
+                <div class="error"><?php echo $clearErrorMessage; ?></div>
+            <?php endif; ?>
         </div>
 
         <div class="container">

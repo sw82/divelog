@@ -184,7 +184,9 @@ $diveLogsQuery = "SELECT id, location, date, rating, depth, duration, latitude, 
                  FROM divelogs 
                  WHERE latitude IS NOT NULL AND longitude IS NOT NULL
                  ORDER BY date DESC";
-$diveLogsResult = $conn->query($diveLogsQuery);
+$stmt = $conn->prepare($diveLogsQuery);
+$stmt->execute();
+$diveLogsResult = $stmt->get_result();
 
 $diveLogs = [];
 if ($diveLogsResult && $diveLogsResult->num_rows > 0) {
@@ -192,18 +194,26 @@ if ($diveLogsResult && $diveLogsResult->num_rows > 0) {
         // Add the raw dive log data
         $diveLog = $row;
         
-        // Get fish sightings count
-        $fishQuery = "SELECT COUNT(*) as count FROM fish_sightings WHERE divelog_id = " . $row['id'];
-        $fishResult = $conn->query($fishQuery);
+        // Get fish sightings count using prepared statement
+        $fishQuery = "SELECT COUNT(*) as count FROM fish_sightings WHERE divelog_id = ?";
+        $fishStmt = $conn->prepare($fishQuery);
+        $fishStmt->bind_param("i", $row['id']);
+        $fishStmt->execute();
+        $fishResult = $fishStmt->get_result();
+        
         if ($fishResult && $fishRow = $fishResult->fetch_assoc()) {
             $diveLog['fish_count'] = $fishRow['count'];
         } else {
             $diveLog['fish_count'] = 0;
         }
         
-        // Get images for this dive
-        $imagesQuery = "SELECT id, filename, caption FROM divelog_images WHERE divelog_id = " . $row['id'];
-        $imagesResult = $conn->query($imagesQuery);
+        // Get images for this dive using prepared statement
+        $imagesQuery = "SELECT id, filename, caption FROM divelog_images WHERE divelog_id = ?";
+        $imagesStmt = $conn->prepare($imagesQuery);
+        $imagesStmt->bind_param("i", $row['id']);
+        $imagesStmt->execute();
+        $imagesResult = $imagesStmt->get_result();
+        
         $diveLog['images'] = [];
         if ($imagesResult && $imagesResult->num_rows > 0) {
             while ($imageRow = $imagesResult->fetch_assoc()) {

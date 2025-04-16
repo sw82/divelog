@@ -23,7 +23,14 @@ try {
               WHERE latitude IS NOT NULL AND longitude IS NOT NULL
               ORDER BY date DESC";
     
-    $result = $conn->query($query);
+    // Convert to prepared statement
+    $stmt = $conn->prepare($query);
+    if (!$stmt) {
+        throw new Exception("Prepare statement failed: " . $conn->error);
+    }
+    
+    $stmt->execute();
+    $result = $stmt->get_result();
     
     if (!$result) {
         throw new Exception("Query failed: " . $conn->error);

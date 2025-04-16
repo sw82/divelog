@@ -272,8 +272,10 @@ if (isset($_GET['action']) && $_GET['action'] === 'create_backup') {
 
 // Handle clear database request
 if (isset($_GET['action']) && $_GET['action'] === 'clear_db') {
-    // Only proceed if confirmation is given
-    if (isset($_GET['confirm']) && $_GET['confirm'] === 'yes') {
+    $confirmed = isset($_GET['confirm']) && $_GET['confirm'] === 'yes';
+    
+    // Enhanced security: Only proceed if explicitly confirmed with verification code
+    if ($confirmed && isset($_POST['verification_code']) && $_POST['verification_code'] === 'DELETE') {
         try {
             // Start transaction
             $conn->begin_transaction();
@@ -302,6 +304,9 @@ if (isset($_GET['action']) && $_GET['action'] === 'clear_db') {
             $conn->rollback();
             outputError("Database operation failed: " . $e->getMessage());
         }
+    } else if ($confirmed) {
+        // Show verification form
+        $showVerificationForm = true;
     }
 }
 
@@ -510,6 +515,40 @@ if (isset($_GET['action']) && $_GET['action'] === 'populate_sample') {
             background-color: #ffebee;
             border-left: 5px solid #f44336;
         }
+        .warning-box {
+            background-color: #fff3e0;
+            border: 2px solid #ff9800;
+            border-radius: 4px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .warning-box h3 {
+            color: #ff5722;
+            margin-top: 0;
+        }
+        .verification-form {
+            margin-top: 20px;
+        }
+        .verification-form input[type="text"] {
+            padding: 10px;
+            width: 100%;
+            border: 2px solid #f44336;
+            border-radius: 4px;
+            font-size: 16px;
+            margin: 10px 0;
+        }
+        .cancel-button {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #757575;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            margin-left: 10px;
+        }
+        .cancel-button:hover {
+            background-color: #616161;
+        }
     </style>
 </head>
 <body>
@@ -573,8 +612,25 @@ if (isset($_GET['action']) && $_GET['action'] === 'populate_sample') {
         <div class="card">
             <h2>Database Operations</h2>
             <p>Warning: These operations can result in permanent data loss. Use with caution.</p>
-            <a href="?action=clear_db&confirm=yes" class="action-button danger-button" onclick="return confirm('WARNING: This will delete ALL data from your database. This action cannot be undone unless you have a backup. Are you sure you want to continue?');">Clear All Data</a>
-            <a href="?action=populate_sample" class="action-button" onclick="return confirm('This will add sample data to your database. Continue?');">Populate with Sample Data</a>
+            
+            <?php if (isset($showVerificationForm) && $showVerificationForm): ?>
+                <div class="warning-box">
+                    <h3>⚠️ DANGER: Confirm Data Deletion</h3>
+                    <p>You are about to delete <strong>ALL DATA</strong> from your dive log database. This action cannot be undone unless you have a backup.</p>
+                    
+                    <form method="post" action="?action=clear_db&confirm=yes" class="verification-form">
+                        <div class="form-group">
+                            <label for="verification_code">To confirm, type <strong>DELETE</strong> in the box below:</label>
+                            <input type="text" id="verification_code" name="verification_code" required autocomplete="off">
+                        </div>
+                        <button type="submit" class="danger-button">I understand the consequences, delete all data</button>
+                        <a href="manage_db.php" class="cancel-button">Cancel</a>
+                    </form>
+                </div>
+            <?php else: ?>
+                <a href="?action=clear_db&confirm=yes" class="action-button danger-button">Clear All Data</a>
+                <a href="?action=populate_sample" class="action-button" onclick="return confirm('This will add sample data to your database. Continue?');">Populate with Sample Data</a>
+            <?php endif; ?>
         </div>
         
         <div class="card">
