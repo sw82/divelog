@@ -7,9 +7,17 @@ ini_set('display_errors', 1);
 include 'db.php';
 
 // Function to determine if a dive log already exists in the database
-function diveLogExists($conn, $location, $date, $latitude, $longitude) {
-    $stmt = $conn->prepare("SELECT id FROM divelogs WHERE location = ? AND date = ? AND ABS(latitude - ?) < 0.0001 AND ABS(longitude - ?) < 0.0001");
-    $stmt->bind_param("ssdd", $location, $date, $latitude, $longitude);
+function diveLogExists($conn, $location, $date, $latitude, $longitude, $dive_time = '') {
+    // If dive_time is provided, include it in the check to allow multiple dives at the same location/date with different times
+    if (!empty($dive_time)) {
+        $stmt = $conn->prepare("SELECT id FROM divelogs WHERE location = ? AND date = ? AND ABS(latitude - ?) < 0.0001 AND ABS(longitude - ?) < 0.0001 AND dive_time = ?");
+        $stmt->bind_param("ssdds", $location, $date, $latitude, $longitude, $dive_time);
+    } else {
+        // If no time provided, check if any dive exists at this location/date/coordinates
+        $stmt = $conn->prepare("SELECT id FROM divelogs WHERE location = ? AND date = ? AND ABS(latitude - ?) < 0.0001 AND ABS(longitude - ?) < 0.0001");
+        $stmt->bind_param("ssdd", $location, $date, $latitude, $longitude);
+    }
+    
     $stmt->execute();
     $result = $stmt->get_result();
     $exists = $result->num_rows > 0;
@@ -39,7 +47,12 @@ function parseCSVRow($row) {
         'rating' => null,
         'comments' => '',
         'fish_sightings' => '',
-        'dive_site' => ''
+        'dive_site' => '',
+        'air_consumption_start' => null,
+        'air_consumption_end' => null,
+        'weight' => null,
+        'suit_type' => '',
+        'water_type' => ''
     ];
     
     // Map CSV columns to database fields
@@ -63,6 +76,13 @@ function parseCSVRow($row) {
     if (isset($row[17])) $diveLog['comments'] = $row[17];
     if (isset($row[18])) $diveLog['fish_sightings'] = $row[18];
     
+    // New technical dive fields
+    if (isset($row[19]) && $row[19] !== '') $diveLog['air_consumption_start'] = intval($row[19]);
+    if (isset($row[20]) && $row[20] !== '') $diveLog['air_consumption_end'] = intval($row[20]);
+    if (isset($row[21]) && $row[21] !== '') $diveLog['weight'] = floatval(str_replace(',', '.', $row[21])); // Handle European number format
+    if (isset($row[22])) $diveLog['suit_type'] = $row[22];
+    if (isset($row[23])) $diveLog['water_type'] = $row[23];
+    
     return $diveLog;
 }
 
@@ -79,6 +99,12 @@ function validateDiveLog($diveLog) {
         $errors[] = "Date is missing - please provide a date in YYYY-MM-DD format";
     } else if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $diveLog['date'])) {
         $errors[] = "Date format is incorrect - please use YYYY-MM-DD format";
+    }
+    
+    // If multiple dives at same location/date are likely, suggest adding a time
+    if (empty($diveLog['dive_time'])) {
+        // We'll just add a warning note, not a hard error
+        $diveLog['_warnings'] = ['No dive time provided - consider adding a time if you have multiple dives at the same location on the same day'];
     }
     
     // If both latitude and longitude are 0 or empty, try to geocode the location
@@ -106,14 +132,26 @@ function validateDiveLog($diveLog) {
     
     // Validate activity_type
     if (!empty($diveLog['activity_type']) && 
-        !in_array($diveLog['activity_type'], ['diving', 'snorkeling'])) {
-        $errors[] = "Activity type must be either 'diving' or 'snorkeling'";
+        $diveLog['activity_type'] !== 'diving') {
+        $errors[] = "Activity type must be 'diving'";
     }
     
     // Validate rating
     if (!empty($diveLog['rating']) && 
         (!is_numeric($diveLog['rating']) || $diveLog['rating'] < 1 || $diveLog['rating'] > 5)) {
         $errors[] = "Rating must be between 1 and 5";
+    }
+    
+    // Validate suit_type if provided
+    if (!empty($diveLog['suit_type']) && 
+        !in_array(strtolower($diveLog['suit_type']), ['wetsuit', 'drysuit', 'shortie', 'swimsuit', 'other'])) {
+        $errors[] = "Suit type must be one of: wetsuit, drysuit, shortie, swimsuit, other";
+    }
+    
+    // Validate water_type if provided
+    if (!empty($diveLog['water_type']) && 
+        !in_array(strtolower($diveLog['water_type']), ['salt', 'fresh', 'brackish'])) {
+        $errors[] = "Water type must be one of: salt, fresh, brackish";
     }
     
     return [$errors, $diveLog];
@@ -124,11 +162,12 @@ function insertDiveLog($conn, $diveLog) {
     $stmt = $conn->prepare("INSERT INTO divelogs (
         location, latitude, longitude, date, dive_time, description, 
         depth, duration, temperature, air_temperature, visibility, 
-        buddy, dive_site_type, activity_type, rating, comments, dive_site
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        buddy, dive_site_type, activity_type, rating, comments, dive_site,
+        air_consumption_start, air_consumption_end, weight, suit_type, water_type
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
     
     $stmt->bind_param(
-        "sddsssddddisssiss", 
+        "sddsssddddisssissidsss", 
         $diveLog['location'], 
         $diveLog['latitude'], 
         $diveLog['longitude'], 
@@ -145,7 +184,12 @@ function insertDiveLog($conn, $diveLog) {
         $diveLog['activity_type'], 
         $diveLog['rating'], 
         $diveLog['comments'],
-        $diveLog['dive_site']
+        $diveLog['dive_site'],
+        $diveLog['air_consumption_start'],
+        $diveLog['air_consumption_end'],
+        $diveLog['weight'],
+        $diveLog['suit_type'],
+        $diveLog['water_type']
     );
     
     $success = $stmt->execute();
@@ -243,10 +287,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
                         continue;
                     }
                     
+                    // Display warnings if any (but continue with import)
+                    if (isset($diveLog['_warnings']) && !empty($diveLog['_warnings'])) {
+                        foreach ($diveLog['_warnings'] as $warning) {
+                            $importResults['success'][] = "Row $rowNumber: <span style='color:#ff9800;'>Warning: " . $warning . "</span>";
+                        }
+                        // Remove the warnings from the dive log data before inserting
+                        unset($diveLog['_warnings']);
+                    }
+                    
                     // Check if dive log already exists
-                    if (diveLogExists($conn, $diveLog['location'], $diveLog['date'], $diveLog['latitude'], $diveLog['longitude'])) {
+                    if (diveLogExists($conn, $diveLog['location'], $diveLog['date'], $diveLog['latitude'], $diveLog['longitude'], $diveLog['dive_time'])) {
                         $importResults['skipped']++;
-                        $importResults['success'][] = "Row $rowNumber: Skipped - a dive at {$diveLog['location']} on {$diveLog['date']} already exists in your log";
+                        $timeInfo = !empty($diveLog['dive_time']) ? " at " . $diveLog['dive_time'] : "";
+                        $importResults['success'][] = "Row $rowNumber: Skipped - a dive at {$diveLog['location']} on {$diveLog['date']}{$timeInfo} already exists in your log";
                         continue;
                     }
                     
@@ -254,7 +308,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
                     $insertResult = insertDiveLog($conn, $diveLog);
                     if ($insertResult['success']) {
                         $importResults['imported']++;
-                        $importResults['success'][] = "Row $rowNumber: Successfully imported dive at {$diveLog['location']} on {$diveLog['date']}";
+                        $timeInfo = !empty($diveLog['dive_time']) ? " at " . $diveLog['dive_time'] : "";
+                        $importResults['success'][] = "Row $rowNumber: Successfully imported dive at {$diveLog['location']} on {$diveLog['date']}{$timeInfo}";
                     } else {
                         $importResults['errors'][] = "Row $rowNumber: Database error - " . $insertResult['error'];
                     }
@@ -365,7 +420,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
                 <li>Latitude - GPS coordinate (if empty but location is provided, geocoding will be attempted)</li>
                 <li>Longitude - GPS coordinate (if empty but location is provided, geocoding will be attempted)</li>
                 <li><strong>Date (required, format: YYYY-MM-DD)</strong></li>
-                <li>Time (optional)</li>
+                <li>Time (format: HH:MM, recommended if you have multiple dives at the same location on the same day)</li>
                 <li>Description (optional)</li>
                 <li>Depth in meters (optional)</li>
                 <li>Duration in minutes (optional)</li>
@@ -374,10 +429,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
                 <li>Visibility in meters (optional)</li>
                 <li>Buddy/Dive Partner (optional)</li>
                 <li>Dive Site Type (optional)</li>
-                <li>Activity Type (optional, 'diving' or 'snorkeling')</li>
+                <li>Activity Type (always 'diving')</li>
                 <li>Rating 1-5 (optional)</li>
                 <li>Comments (optional)</li>
                 <li>Fish Sightings (optional, will be ignored during import)</li>
+                <li>Air Consumption Start (optional, in minutes)</li>
+                <li>Air Consumption End (optional, in minutes)</li>
+                <li>Weight (optional, in kilograms)</li>
+                <li>Suit Type (optional, one of: wetsuit, drysuit, shortie, swimsuit, other)</li>
+                <li>Water Type (optional, one of: salt, fresh, brackish)</li>
             </ol>
             <p>You can download a template CSV file with the correct format and sample data to help you get started. <strong>Note:</strong> If you don't provide latitude/longitude coordinates, the system will attempt to automatically geocode them based on the location name.</p>
             <a href="csv_template.php" class="download-template">Download Template CSV</a>

@@ -1,9 +1,11 @@
 <nav class="menu">
-    <button class="mobile-menu-toggle" id="mobileMenuToggle">☰</button>
+    <div class="menu-toggle">
+        <span class="hamburger-icon">☰</span>
+    </div>
     <div class="menu-items">
-        <a href="index.php" id="nav-index">View Dive Log</a>
-        <a href="populate_db.php" id="nav-populate">Manage Dives</a>
-        <a href="fish_manager.php" id="nav-fish">Fish Species</a>
+        <a href="index.php" id="nav-index">Dive Map</a>
+        <a href="divelist.php" id="nav-divelist">Divelist</a>
+        <a href="fishlist.php" id="nav-fish">Fish List</a>
         <a href="manage_db.php" id="nav-db">Manage Database</a>
     </div>
 </nav>
@@ -21,32 +23,25 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add active class to current page link
     if (filename === 'index.php' || filename === '') {
         document.getElementById('nav-index').classList.add('active');
-    } else if (filename === 'populate_db.php') {
-        document.getElementById('nav-populate').classList.add('active');
-    } else if (filename === 'fish_manager.php' || filename === 'fish_details.php') {
+    } else if (filename === 'divelist.php') {
+        document.getElementById('nav-divelist').classList.add('active');
+    } else if (filename === 'fishlist.php' || filename === 'fish_details.php') {
         document.getElementById('nav-fish').classList.add('active');
-    } else if (filename === 'manage_db.php' || filename === 'backup_db.php' || filename === 'update_database.php' || 
+    } else if (filename === 'fish_manager.php') {
+        document.getElementById('nav-fish').classList.add('active');
+    } else if (filename === 'populate_db.php' || filename === 'edit_dive.php' || filename === 'view_dive.php' || 
+               filename === 'manage_db.php' || filename === 'backup_db.php' || filename === 'update_database.php' || 
                filename === 'import.php' || filename === 'process_ocr.php' || filename === 'save_ocr_data.php' || 
                filename === 'export_csv.php') {
         document.getElementById('nav-db').classList.add('active');
     }
     
-    // Mobile menu toggle
-    const mobileMenuToggle = document.getElementById('mobileMenuToggle');
+    // Hamburger menu toggle functionality
+    const menuToggle = document.querySelector('.menu-toggle');
     const menuItems = document.querySelector('.menu-items');
     
-    if (mobileMenuToggle) {
-        mobileMenuToggle.addEventListener('click', function() {
-            menuItems.classList.toggle('active');
-        });
-    }
-    
-    // Close menu when clicking outside
-    document.addEventListener('click', function(event) {
-        if (menuItems && menuItems.classList.contains('active') && 
-            !event.target.closest('.menu') && event.target !== mobileMenuToggle) {
-            menuItems.classList.remove('active');
-        }
+    menuToggle.addEventListener('click', function() {
+        menuItems.classList.toggle('active');
     });
 });
 </script> 

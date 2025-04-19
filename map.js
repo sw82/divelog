@@ -40,12 +40,6 @@ document.addEventListener('DOMContentLoaded', function() {
             fillOpacity: 0.8
         };
         
-        // If it's a snorkeling activity, use a dashed border
-        if (dive.activity_type === 'snorkeling') {
-            markerOptions.dashArray = '3,3';
-            markerOptions.weight = 3;
-        }
-        
         // Create marker at the dive's coordinates
         const marker = L.circleMarker([dive.latitude, dive.longitude], markerOptions);
         
@@ -67,136 +61,211 @@ document.addEventListener('DOMContentLoaded', function() {
     // Create popup HTML content for a dive
     function createDivePopup(dive) {
         // Format the date
-        const date = new Date(dive.date);
-        const formattedDate = date.toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-        });
+        let date = new Date(dive.dive_date);
+        let formattedDate = 'Unknown Date';
         
-        // Start popup content
-        let popupContent = `
-            <div class="dive-popup">
-                <h3>${dive.location}</h3>
-                <div class="dive-date">${formattedDate}</div>`;
-        
-        // Add rating as stars if available
-        if (dive.rating) {
-            const stars = '★'.repeat(parseInt(dive.rating));
-            popupContent += `<div class="dive-rating">${stars}</div>`;
-        }
-        
-        popupContent += `<div class="dive-details">`;
-        
-        // Add dive details if available (more comprehensive)
-        if (dive.max_depth) {
-            popupContent += `<p><strong>Depth:</strong> ${dive.max_depth} m</p>`;
-        }
-        
-        if (dive.duration) {
-            popupContent += `<p><strong>Duration:</strong> ${dive.duration} min</p>`;
-        }
-        
-        if (dive.activity_type) {
-            const activityLabel = dive.activity_type.charAt(0).toUpperCase() + dive.activity_type.slice(1);
-            popupContent += `<p><strong>Activity:</strong> ${activityLabel}</p>`;
-        }
-        
-        if (dive.temperature) {
-            popupContent += `<p><strong>Water Temp:</strong> ${dive.temperature}°C</p>`;
-        }
-        
-        if (dive.visibility) {
-            popupContent += `<p><strong>Visibility:</strong> ${dive.visibility} m</p>`;
-        }
-        
-        if (dive.dive_site_type) {
-            popupContent += `<p><strong>Site Type:</strong> ${dive.dive_site_type}</p>`;
-        }
-        
-        if (dive.buddy) {
-            popupContent += `<p><strong>Buddy:</strong> ${dive.buddy}</p>`;
-        }
-        
-        // Close details section
-        popupContent += '</div>';
-        
-        // Add description if available
-        if (dive.description) {
-            popupContent += `<p class="dive-description">${dive.description}</p>`;
-        }
-        
-        // Add images if available (max 3 for performance)
-        if (dive.images && dive.images.length > 0) {
-            popupContent += '<div class="popup-images">';
-            
-            // Limit to 3 images in popup
-            const imagesToShow = dive.images.slice(0, 3);
-            imagesToShow.forEach(function(image) {
-                popupContent += `
-                    <div class="popup-image">
-                        <img src="uploads/diveimages/${image}" alt="Dive Image">
-                    </div>
-                `;
+        // Check if date is valid before formatting
+        if (!isNaN(date.getTime())) {
+            formattedDate = date.toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
             });
-            
-            // If there are more images, add a note
-            if (dive.images.length > 3) {
-                popupContent += `<p class="more-images">+ ${dive.images.length - 3} more images</p>`;
-            }
-            
-            popupContent += '</div>';
-        }
-        
-        // Add fish sightings if available
-        if (dive.fish_sightings && dive.fish_sightings.length > 0) {
-            popupContent += `
-                <div class="fish-sightings-container">
-                    <div class="fish-sightings-title">Fish Spotted (${dive.fish_sightings.length}):</div>
-                    <div class="fish-list">
-            `;
-            
-            // Show up to 6 fish in the popup
-            const fishToShow = dive.fish_sightings.slice(0, 6);
-            fishToShow.forEach(function(sighting) {
-                // Determine the display name
-                const fishName = sighting.common_name || sighting.scientific_name || 'Unknown Fish';
-                
-                // Create fish item with image if available
-                popupContent += `<div class="fish-item">`;
-                
-                if (sighting.image_path) {
-                    popupContent += `<img src="uploads/fishimages/${sighting.image_path}" alt="${fishName}" class="fish-image">`;
-                } else {
-                    popupContent += `<div class="fish-image-placeholder">No Image</div>`;
+        } else {
+            console.warn('Invalid date format for dive:', dive.id, dive.dive_date);
+            // Fallback: try to parse date from the raw date string if available
+            if (dive.date) {
+                const fallbackDate = new Date(dive.date);
+                if (!isNaN(fallbackDate.getTime())) {
+                    formattedDate = fallbackDate.toLocaleDateString('en-US', { 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                    });
                 }
-                
-                popupContent += `
-                    <div class="fish-info">
-                        <div class="fish-name" title="${fishName}">${fishName}</div>
-                        <div class="fish-quantity">${sighting.quantity || 'Spotted'}</div>
-                    </div>
-                </div>`;
-            });
-            
-            popupContent += `</div>`;
-            
-            // If there are more fish, add a link
-            if (dive.fish_sightings.length > 6) {
-                popupContent += `<a href="populate_db.php?edit=${dive.id}" class="more-fish">+ ${dive.fish_sightings.length - 6} more fish species</a>`;
             }
-            
-            popupContent += `</div>`;
         }
         
-        // Add footer with edit link
-        popupContent += `
-            <div class="popup-footer">
-                <a href="populate_db.php?edit=${dive.id}" class="popup-edit-link">Edit Dive</a>
+        // Create the star rating
+        let ratingHtml = '';
+        const rating = parseInt(dive.rating) || 0;
+        for (let i = 1; i <= 5; i++) {
+            if (i <= rating) {
+                ratingHtml += '<i class="fas fa-star"></i>';
+            } else {
+                ratingHtml += '<i class="far fa-star"></i>';
+            }
+        }
+        
+        // Start building the content
+        let content = `
+            <div class="dive-popup">
+                <div class="dive-header">
+                    <h3>${dive.dive_site || 'Unnamed Dive'}</h3>
+                    <div class="dive-rating">${ratingHtml}</div>
+                    <div class="dive-date">${formattedDate}</div>
+                </div>`;
+        
+        // Images section
+        if (dive.images && dive.images.length > 0) {
+            content += `<div class="dive-images">`;
+            
+            // Display up to 3 images
+            const imagesToShow = dive.images.slice(0, 3);
+            imagesToShow.forEach(image => {
+                content += `<img src="${image.image_path}" alt="Dive image" class="dive-img">`;
+            });
+            
+            // If there are more than 3 images, add a note
+            if (dive.images.length > 3) {
+                content += `<div class="more-images">+${dive.images.length - 3} more</div>`;
+            }
+            
+            content += `</div>`;
+        }
+        
+        // Description section
+        if (dive.description) {
+            let description = dive.description;
+            let shortDesc = description;
+            let readMoreLink = '';
+            
+            // If description is long, truncate it and add a "read more" link
+            if (description.length > 150) {
+                shortDesc = description.substring(0, 150) + '...';
+                readMoreLink = `<a href="#" class="read-more" onclick="toggleDescription(this, event)">Read more</a>`;
+            }
+            
+            content += `
+                <div class="dive-description">
+                    <h4>Description</h4>
+                    <p class="short-desc">${shortDesc}</p>
+                    <p class="full-desc" style="display: none;">${description}</p>
+                    ${readMoreLink}
+                </div>`;
+        }
+        
+        // Dive details grid
+        content += `
+            <div class="dive-details-grid">
+                <div class="detail-item">
+                    <i class="fas fa-water"></i>
+                    <span class="detail-label">Depth</span>
+                    <span class="detail-value">${dive.max_depth || '-'} m</span>
+                </div>
+                <div class="detail-item">
+                    <i class="fas fa-clock"></i>
+                    <span class="detail-label">Duration</span>
+                    <span class="detail-value">${dive.dive_duration || '-'} min</span>
+                </div>
+                <div class="detail-item">
+                    <i class="fas fa-temperature-low"></i>
+                    <span class="detail-label">Water Temp</span>
+                    <span class="detail-value">${dive.water_temp || '-'} °C</span>
+                </div>
+                <div class="detail-item">
+                    <i class="fas fa-eye"></i>
+                    <span class="detail-label">Visibility</span>
+                    <span class="detail-value">${dive.visibility || '-'} m</span>
+                </div>
+                <div class="detail-item">
+                    <i class="fas fa-sun"></i>
+                    <span class="detail-label">Air Temp</span>
+                    <span class="detail-value">${dive.air_temp || '-'} °C</span>
+                </div>
+                <div class="detail-item">
+                    <i class="fas fa-tag"></i>
+                    <span class="detail-label">Activity</span>
+                    <span class="detail-value">${dive.activity_type || 'Dive'}</span>
+                </div>
+            </div>`;
+        
+        // Additional information
+        if (dive.site_type || dive.buddy) {
+            content += `<div class="dive-additional-info">`;
+            
+            if (dive.site_type) {
+                content += `<div class="info-item"><span class="info-label">Site Type:</span> ${dive.site_type}</div>`;
+            }
+            
+            if (dive.buddy) {
+                content += `<div class="info-item"><span class="info-label">Buddy:</span> ${dive.buddy}</div>`;
+            }
+            
+            content += `</div>`;
+        }
+        
+        // Comments section
+        if (dive.comments) {
+            content += `
+                <div class="dive-comments">
+                    <h4>Comments</h4>
+                    <p>${dive.comments}</p>
+                </div>`;
+        }
+        
+        // Fish sightings section
+        if (dive.fish_sightings && dive.fish_sightings.length > 0) {
+            content += `
+                <div class="fish-sightings">
+                    <h4>Fish Sightings</h4>
+                    <div class="fish-grid">`;
+            
+            // Display up to 6 fish
+            const fishToShow = dive.fish_sightings.slice(0, 6);
+            fishToShow.forEach(fish => {
+                let fishImage = fish.image_path ? fish.image_path : 'images/fish_placeholder.png';
+                
+                content += `
+                    <div class="fish-item fish-tooltip-trigger">
+                        <img src="${fishImage}" alt="${fish.common_name || 'Fish'}" class="fish-img">
+                        <div class="fish-name">${fish.common_name || 'Unknown Fish'}</div>
+                        <div class="fish-tooltip">
+                            <div class="tooltip-content">
+                                <div class="fish-scientific-name">${fish.scientific_name || ''}</div>
+                                <div class="fish-quantity">Quantity: ${fish.quantity || '1'}</div>
+                                ${fish.notes ? `<div class="fish-notes">${fish.notes}</div>` : ''}
+                            </div>
+                        </div>
+                    </div>`;
+            });
+            
+            content += `</div>`;
+            
+            // If there are more than 6 fish, add a link
+            if (dive.fish_sightings.length > 6) {
+                content += `<div class="more-fish"><a href="divelog.php?id=${dive.id}" class="view-all-fish">View all ${dive.fish_sightings.length} fish sightings</a></div>`;
+            }
+            
+            content += `</div>`;
+        }
+        
+        // Footer with edit link
+        content += `
+            <div class="dive-footer">
+                <a href="edit_dive.php?id=${dive.id}" class="edit-dive-link">Edit this dive</a>
             </div>
         </div>`;
         
-        return popupContent;
+        return content;
+    }
+    
+    // Function to toggle between short and full description
+    function toggleDescription(link, event) {
+        event.preventDefault();
+        const parent = $(link).parent();
+        const shortDesc = parent.find('.short-desc');
+        const fullDesc = parent.find('.full-desc');
+        
+        if (shortDesc.is(':visible')) {
+            shortDesc.hide();
+            fullDesc.show();
+            $(link).text('Read less');
+        } else {
+            fullDesc.hide();
+            shortDesc.show();
+            $(link).text('Read more');
+        }
     }
     
     // Create a custom cluster icon with a nice appearance

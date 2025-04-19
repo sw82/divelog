@@ -55,18 +55,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search'])) {
     $searchResults = true;
 }
 
-// Fetch all dive logs from the database
-$query = "SELECT * FROM divelogs";
-$params = [];
-$types = "";
+// Build the SQL query
+$query = "SELECT id, location, dive_site, latitude, longitude, date, DATE_FORMAT(date, '%Y') AS year,
+          depth, duration, rating, temperature, air_temperature, visibility, activity_type,
+          dive_site_type, description, comments, buddy
+          FROM divelogs";
 
-// Add search criteria if search term is provided
+// If search term provided, add WHERE clause
 if (!empty($searchTerm)) {
-    $query .= " WHERE location LIKE ? OR description LIKE ? OR dive_site_type LIKE ? OR buddy LIKE ?";
     $searchParam = "%$searchTerm%";
-    $params = [$searchParam, $searchParam, $searchParam, $searchParam];
-    $types = "ssss";
+    $query .= " WHERE location LIKE ? OR dive_site LIKE ? OR buddy LIKE ?";
 }
+
+// Get total count first (for pagination)
+$countQuery = str_replace("SELECT id, location, dive_site, latitude, longitude, date, DATE_FORMAT(date, '%Y') AS year,
+          depth, duration, rating, temperature, air_temperature, visibility, activity_type,
+          dive_site_type, description, comments, buddy", "SELECT COUNT(*) as total", $query);
 
 // Add order by date for consistent display
 $query .= " ORDER BY date DESC";
@@ -89,17 +93,12 @@ $latestDive = null;
 $deepestDive = null;
 
 if ($result && $result->num_rows > 0) {
-    // Count the diving activities (not snorkeling)
+    // Track dive count (all are diving now)
     $divingCount = 0;
-    $snorkelingCount = 0;
     
     while ($row = $result->fetch_assoc()) {
-        // Track activity type counts
-        if ($row['activity_type'] === 'snorkeling') {
-            $snorkelingCount++;
-        } else {
-            $divingCount++;
-        }
+        // Track dive count (all are diving now)
+        $divingCount++;
         
         // Get images for this dive
         $diveImages = getDiveImages($row['id']);
@@ -124,7 +123,7 @@ if ($result && $result->num_rows > 0) {
             'dive_site_type' => $row['dive_site_type'],
             'rating' => $row['rating'],
             'comments' => $row['comments'],
-            'activity_type' => $row['activity_type'],
+            'activity_type' => 'diving', // All activities are diving now
             'images' => array_map(function($img) {
                 return [
                     'id' => $img['id'],
@@ -141,17 +140,15 @@ if ($result && $result->num_rows > 0) {
             $years[] = $year;
         }
         
-        // Check if it's a dive (not snorkeling) for dive-specific statistics
-        if ($row['activity_type'] !== 'snorkeling') {
-            // Track latest dive
-            if ($latestDive === null || $row['date'] > $latestDive['date']) {
-                $latestDive = $row;
-            }
-            
-            // Track deepest dive
-            if (!empty($row['depth']) && ($deepestDive === null || $row['depth'] > $deepestDive['depth'])) {
-                $deepestDive = $row;
-            }
+        // All activities are diving now - track statistics
+        // Track latest dive
+        if ($latestDive === null || $row['date'] > $latestDive['date']) {
+            $latestDive = $row;
+        }
+        
+        // Track deepest dive
+        if (!empty($row['depth']) && ($deepestDive === null || $row['depth'] > $deepestDive['depth'])) {
+            $deepestDive = $row;
         }
     }
     
@@ -227,18 +224,13 @@ if ($diveLogsResult && $diveLogsResult->num_rows > 0) {
 
 // Statistics
 $totalDives = 0;
-$totalSnorkeling = 0;
 $totalMinutes = 0;
 $maxDepth = 0;
 $locations = [];
 
 foreach ($diveLogs as $dive) {
-    // Count by activity type
-    if ($dive['activity_type'] === 'snorkeling') {
-        $totalSnorkeling++;
-    } else {
-        $totalDives++;
-    }
+    // All activities are diving now
+    $totalDives++;
     
     // Track locations
     if (!in_array($dive['location'], $locations)) {
@@ -256,7 +248,7 @@ foreach ($diveLogs as $dive) {
     }
 }
 
-$totalActivities = $totalDives + $totalSnorkeling;
+$totalActivities = $totalDives; // All are dives now
 $locationCount = count($locations);
 $avgDuration = $totalActivities > 0 ? round($totalMinutes / $totalActivities) : 0;
 
@@ -404,11 +396,6 @@ $highlightTitle = isset($_GET['title']) ? htmlspecialchars($_GET['title']) : '';
                 <div class="stat-label">Dive Activities</div>
                 <div class="stat-value"><?php echo $totalDives; ?></div>
                 <div class="stat-label"><?php echo round(($totalDives / max(1, $totalActivities)) * 100); ?>% of total</div>
-            </div>
-            <div class="stat-box snorkel">
-                <div class="stat-label">Snorkeling</div>
-                <div class="stat-value"><?php echo $totalSnorkeling; ?></div>
-                <div class="stat-label"><?php echo round(($totalSnorkeling / max(1, $totalActivities)) * 100); ?>% of total</div>
             </div>
             <div class="stat-box">
                 <div class="stat-label">Max Depth</div>

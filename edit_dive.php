@@ -59,10 +59,15 @@ if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
                     dive_site_type = ?,
                     rating = ?,
                     comments = ?,
-                    dive_site = ? 
+                    dive_site = ?,
+                    air_consumption_start = ?,
+                    air_consumption_end = ?,
+                    weight = ?,
+                    suit_type = ?,
+                    water_type = ?
                     WHERE id = ?");
                 
-                $stmt->bind_param("sddssddddississi", 
+                $stmt->bind_param("sddssddddississiidsssi", 
                     $_POST['location'],
                     $_POST['latitude'],
                     $_POST['longitude'],
@@ -78,6 +83,11 @@ if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
                     $_POST['rating'],
                     $_POST['comments'],
                     $_POST['dive_site'],
+                    $_POST['air_start'],
+                    $_POST['air_end'],
+                    $_POST['weight'],
+                    $_POST['suit_type'],
+                    $_POST['water_type'],
                     $dive_id
                 );
                 
@@ -307,6 +317,55 @@ $fish_species = getAllFishSpecies();
                                 <?php for ($i = 1; $i <= 5; $i++): ?>
                                     <option value="<?php echo $i; ?>" <?php echo (($divelog['rating'] ?? 0) == $i) ? 'selected' : ''; ?>><?php echo $i; ?></option>
                                 <?php endfor; ?>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <h4 class="mt-4">Technical Details</h4>
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label for="air_start">Air Start (bar):</label>
+                            <input type="number" class="form-control" id="air_start" name="air_start" value="<?php echo htmlspecialchars($divelog['air_consumption_start'] ?? ''); ?>">
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label for="air_end">Air End (bar):</label>
+                            <input type="number" class="form-control" id="air_end" name="air_end" value="<?php echo htmlspecialchars($divelog['air_consumption_end'] ?? ''); ?>">
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label for="weight">Weight (kg):</label>
+                            <input type="number" step="0.5" class="form-control" id="weight" name="weight" value="<?php echo htmlspecialchars($divelog['weight'] ?? ''); ?>">
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label for="suit_type">Suit Type:</label>
+                            <select class="form-control" id="suit_type" name="suit_type">
+                                <option value="" <?php echo empty($divelog['suit_type']) ? 'selected' : ''; ?>>-- Select --</option>
+                                <option value="wetsuit" <?php echo ($divelog['suit_type'] === 'wetsuit') ? 'selected' : ''; ?>>Wetsuit</option>
+                                <option value="drysuit" <?php echo ($divelog['suit_type'] === 'drysuit') ? 'selected' : ''; ?>>Drysuit</option>
+                                <option value="shortie" <?php echo ($divelog['suit_type'] === 'shortie') ? 'selected' : ''; ?>>Shortie</option>
+                                <option value="swimsuit" <?php echo ($divelog['suit_type'] === 'swimsuit') ? 'selected' : ''; ?>>Swimsuit</option>
+                                <option value="other" <?php echo ($divelog['suit_type'] === 'other') ? 'selected' : ''; ?>>Other</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="water_type">Water Type:</label>
+                            <select class="form-control" id="water_type" name="water_type">
+                                <option value="" <?php echo empty($divelog['water_type']) ? 'selected' : ''; ?>>-- Select --</option>
+                                <option value="salt" <?php echo ($divelog['water_type'] === 'salt') ? 'selected' : ''; ?>>Salt water</option>
+                                <option value="fresh" <?php echo ($divelog['water_type'] === 'fresh') ? 'selected' : ''; ?>>Fresh water</option>
+                                <option value="brackish" <?php echo ($divelog['water_type'] === 'brackish') ? 'selected' : ''; ?>>Brackish</option>
                             </select>
                         </div>
                     </div>

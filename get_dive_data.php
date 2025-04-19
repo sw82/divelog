@@ -50,6 +50,7 @@ try {
         $formatted_dive = [
             'id' => $dive['id'],
             'location' => $dive['location'],
+            'dive_date' => date('Y-m-d', strtotime($dive['dive_date'])),
             'date' => $dive['dive_date'],
             'year' => $dive['year'],
             'rating' => $dive['rating'],

@@ -34,9 +34,14 @@ Done with Vibe Coding.
 - [x] change menu structure: 1) "view dive log" = rename to dive map 2) divelist 3) fish list (same style as divelist) 4) Manage Database. Once you have the four items take care that when clicking one of the pages all menues looks the same and have the same entries. also make sure there is no hamburger menu. 
 - [x] edit dives must work. each part where you can edit a dive must jump to the divelist in an edit mode. also the edit function in the divelist does not work
 - [x] if in a csv import you only have a location, but no lat len this is okay and should be reverse geocoded internally. the functionally is there anyways. 
-- [ ] refactor carefully and delete files not needed
+- [x] refactor carefully and delete files not needed. also check if all untrackeck files are needed. is every file needed and used (e.g. been shown) or can they be deleted. check for function which never been used. make sure all .sql files are in an initial setup for the database. we don't want any overhead. the project is suppoesed to work light weighted.
 - [x] when uploading to git repo never upload my custom database entries. only the sample data
-- [ ] security check that you cannot accidentally remove the database or make sql injections
+- [x] security check that you cannot accidentally remove the database or make sql injections
+- [x] the uplaods content shall also not be added to git. 
+- [x] remove snorkeling again. this supposed to be a divers log
+- [x] add air consumption (bar) and weight added as well as type of suit (wetsuit, drysuit, just shorts etc.), type of water (salt, sweet, sea, lake etc.). update database schema, csv export etc.
+- [x] I have a description and a coment field. why both?
+
 
 
 ## Recent Changes
@@ -45,14 +50,34 @@ Done with Vibe Coding.
   - Added .gitignore rules to prevent database backups from being uploaded
   - Configured separate .gitignore in backups directory for SQL files
   - Protected sensitive configuration files from accidental commits
+  - Added proper handling of uploads directory to keep structure in git but exclude content
 - **Fixed File Upload Issues**:
   - Fixed file input handling for CSV import to prevent double-click requirement
   - Improved UX for file selection with proper styling
-- **Improved CSV Import**: 
+- **Removed Snorkeling Option**:
+  - Simplified activity tracking to focus on diving only
+  - Updated database schema to remove snorkeling as an activity type
+  - Converted existing snorkeling entries to diving
+  - Streamlined UI by removing snorkeling filters and toggle options
+- **Clarified Field Purposes**:
+  - Distinguished between "Description" (objective dive site observations) and "Comments" (personal notes)
+  - Enhanced the organization of dive information in a more structured way
+  - Maintained compatibility with standard dive logging practices
+- **Added Technical Dive Details**:
+  - Added air consumption tracking (start and end pressure in bar)
+  - Added weight tracking (in kg)
+  - Added suit type selection (wetsuit, drysuit, shortie, swimsuit, other)
+  - Added water type classification (salt, fresh, brackish)
+  - Updated forms, CSV import/export, and database schema
+- **Improved CSV Import**:
   - Added automatic detection of CSV delimiters (comma or semicolon)
+  - Enhanced support for semicolon-separated values to better preserve comma-containing data
   - Enhanced empty row detection to skip blank lines
   - Added support for European number formats (using comma as decimal separator)
   - Improved error messages for more user-friendly troubleshooting
+  - Added time-based duplicate detection to support multiple dives at the same location on the same day
+  - Enhanced template with examples showing multiple dives at same location with different times
+  - Added warnings when time information is missing but might be needed
 - **Added Dive Site Name Field**: Added specific dive site name field separate from location
 - **CSV Import Geocoding**: Added automatic geocoding for CSV imports with location but no coordinates
 - **CSV Export/Import Updates**: Updated CSV template with clearer field requirements
@@ -65,6 +90,10 @@ Done with Vibe Coding.
   - Interactive cluster markers with summary popups
   - Improved performance for maps with many dive locations
   - Custom-styled clusters matching the application theme
+- **Bug Fixes**:
+  - Fixed "Invalid Date" display issue in map popups for certain date formats
+  - Improved date handling with robust error checking and fallback mechanisms
+  - Standardized date formatting across PHP and JavaScript components
 
 ## Project Changes
 
@@ -92,7 +121,14 @@ This project has undergone a major restructuring:
   - Advanced marker clustering for better visualization of dive sites
   - Intelligent grouping of nearby dive locations
   - Interactive cluster popups showing location summaries
-- **Dive Log Management**: Add, edit, and delete dive entries with detailed information
+- **Dive Log Management**: 
+  - Add, edit, and delete dive entries with detailed information
+  - Record comprehensive dive metrics:
+    - Basic: depth, duration, water/air temperature, visibility
+    - Technical: air consumption (start/end pressure), weight, suit type, water type
+  - Track dive buddies and site types
+  - Rate dives on a 1-5 scale
+  - Add comments and descriptions
 - **Image Management**: Upload and manage dive images
 - **Fish Species Tracking**: Record and manage fish species with images
 - **Fish Sightings**: Link fish sightings to specific dives
@@ -120,6 +156,16 @@ This project has undergone a major restructuring:
   - Touch-friendly interface elements
   - Adaptive layout that scales from phones to desktop screens
   - Optimized map controls for touch screens
+- **Export & Import**:
+  - Export dive logs to CSV format with all dive data
+  - Import dive logs from CSV with flexible field mapping
+  - Intelligent handling of duplicate detection for multiple dives:
+    - Uses time slot to differentiate between dives at the same location on the same day
+    - Provides helpful warnings when time information might be needed
+  - Automatic geocoding of locations without coordinates
+  - Support for various CSV formats (comma or semicolon delimiters)
+  - European number format support (comma as decimal separator)
+  - Detailed error feedback and import result summary
 
 ## Usage
 
@@ -185,7 +231,7 @@ The OCR feature supports:
 
 3. **Database Setup**
    - Create a new MySQL database
-   - Import the initial schema from `database/divelog.sql`
+   - Import the initial schema from `database_setup.sql`
    - Create a `config.php` file with the following template:
      ```php
      <?php
@@ -200,24 +246,12 @@ The OCR feature supports:
      
      // Check connection
      if ($conn->connect_error) {
-         die("Connection failed: " . $conn->connect_error);
-     }
-     
-     // Directory configuration
-     define('UPLOADS_DIR', 'uploads/');
-     define('DIVE_IMAGES_DIR', UPLOADS_DIR . 'diveimages/');
-     define('FISH_IMAGES_DIR', UPLOADS_DIR . 'fishimages/');
-     define('BACKUPS_DIR', 'backups/');
-     
-     // Ensure directories exist
-     $directories = [UPLOADS_DIR, DIVE_IMAGES_DIR, FISH_IMAGES_DIR, BACKUPS_DIR];
-     foreach ($directories as $dir) {
-         if (!file_exists($dir) && !mkdir($dir, 0755, true)) {
-             error_log("Failed to create directory: $dir");
-         }
+       die("Connection failed: " . $conn->connect_error);
      }
      ?>
      ```
+   - Alternatively, after database creation, navigate to `update_database.php` in your browser to automatically 
+     set up the required tables and columns
 
 4. **File Permissions**
    ```bash

@@ -536,4 +536,40 @@ document.addEventListener('DOMContentLoaded', function() {
     } else {
         console.warn("No dive log data available. Make sure diveLogsData is properly defined.");
     }
+
+    // When a dive detail link is clicked, we want to load the dive data
+    $(document).on('click', '.dive-detail-link', function(e) {
+        e.preventDefault();
+        const diveId = $(this).data('dive-id');
+        
+        // Show loading indicator
+        $('#dive-detail-modal .modal-body').html('<div class="text-center"><i class="fas fa-spinner fa-spin fa-2x"></i><p>Loading dive details...</p></div>');
+        $('#dive-detail-modal').modal('show');
+        
+        // Fetch the dive data
+        $.ajax({
+            url: 'get_dive_data.php',
+            type: 'GET',
+            data: { id: diveId },
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    const dive = response.data;
+                    const popupContent = createDivePopup(dive);
+                    $('#dive-detail-modal .modal-body').html(popupContent);
+                    
+                    // Initialize tooltips
+                    $('.fish-tooltip-trigger').hover(
+                        function() { $(this).find('.fish-tooltip').show(); },
+                        function() { $(this).find('.fish-tooltip').hide(); }
+                    );
+                } else {
+                    $('#dive-detail-modal .modal-body').html('<div class="alert alert-danger">Error loading dive details</div>');
+                }
+            },
+            error: function() {
+                $('#dive-detail-modal .modal-body').html('<div class="alert alert-danger">Error connecting to server</div>');
+            }
+        });
+    });
 });

@@ -48,9 +48,13 @@ db.php
 config.php
 
 # Upload directories - ignore the files but keep the directories
+uploads/*
+!uploads/.gitkeep
+!uploads/diveimages/
+!uploads/fishimages/
 uploads/diveimages/*
-uploads/fishimages/*
 !uploads/diveimages/.gitkeep
+uploads/fishimages/*
 !uploads/fishimages/.gitkeep
 
 # Backup files
