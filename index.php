@@ -270,6 +270,9 @@ $highlightTitle = isset($_GET['title']) ? htmlspecialchars($_GET['title']) : '';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Dive Log Map</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
@@ -429,6 +432,6 @@ $highlightTitle = isset($_GET['title']) ? htmlspecialchars($_GET['title']) : '';
         const highlightLng = <?php echo $highlightLng ? $highlightLng : 'null'; ?>;
         const highlightTitle = "<?php echo $highlightTitle; ?>";
     </script>
-    <script src="map.js"></script>
+    <script src="map.js?v=<?php echo time(); ?>"></script>
 </body>
 </html> 

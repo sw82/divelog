@@ -52,8 +52,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         // Commit the transaction
         $conn->commit();
         
-        // Redirect to prevent form resubmission
-        header("Location: divelist.php?year={$yearFilter}&message=deleted");
+        // Redirect to prevent form resubmission - add cache busting parameter
+        header("Location: divelist.php?year={$yearFilter}&message=deleted&cache_bust=" . time());
         exit;
     } catch (Exception $e) {
         // Rollback the transaction if an error occurs

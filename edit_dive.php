@@ -197,8 +197,8 @@ if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
                     // Commit the transaction
                     $conn->commit();
                     
-                    // Redirect to dive list with success message
-                    header("Location: divelist.php?message=deleted");
+                    // Redirect to dive list with success message - add cache busting parameter
+                    header("Location: divelist.php?message=deleted&cache_bust=" . time());
                     exit;
                 } catch (Exception $e) {
                     // Rollback the transaction if an error occurs
