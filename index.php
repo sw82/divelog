@@ -264,6 +264,102 @@ foreach ($diveLogs as $dive) {
 $highlightLat = isset($_GET['lat']) ? floatval($_GET['lat']) : null;
 $highlightLng = isset($_GET['lng']) ? floatval($_GET['lng']) : null;
 $highlightTitle = isset($_GET['title']) ? htmlspecialchars($_GET['title']) : '';
+
+// Check if we have a cache busting parameter - if so, force refresh of data
+$cacheBust = isset($_GET['cache_bust']);
+if ($cacheBust) {
+    // Force a clean query of the database by setting headers to prevent caching
+    header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+    header("Cache-Control: post-check=0, pre-check=0", false);
+    header("Pragma: no-cache");
+    
+    // Re-run the query to ensure fresh data
+    $diveLogsQuery = "SELECT id, location, date, rating, depth, duration, latitude, longitude, activity_type, 
+                         temperature, visibility, air_temperature, dive_site_type, buddy, description, comments,
+                         YEAR(date) as year
+                  FROM divelogs 
+                  WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+                  ORDER BY date DESC";
+    $stmt = $conn->prepare($diveLogsQuery);
+    $stmt->execute();
+    $diveLogsResult = $stmt->get_result();
+    
+    // Clear and rebuild dive logs array
+    $diveLogs = [];
+    if ($diveLogsResult && $diveLogsResult->num_rows > 0) {
+        while ($row = $diveLogsResult->fetch_assoc()) {
+            // Add the raw dive log data
+            $diveLog = $row;
+            
+            // Get fish sightings count using prepared statement
+            $fishQuery = "SELECT COUNT(*) as count FROM fish_sightings WHERE divelog_id = ?";
+            $fishStmt = $conn->prepare($fishQuery);
+            $fishStmt->bind_param("i", $row['id']);
+            $fishStmt->execute();
+            $fishResult = $fishStmt->get_result();
+            
+            if ($fishResult && $fishRow = $fishResult->fetch_assoc()) {
+                $diveLog['fish_count'] = $fishRow['count'];
+            } else {
+                $diveLog['fish_count'] = 0;
+            }
+            
+            // Get images for this dive using prepared statement
+            $imagesQuery = "SELECT id, filename, caption FROM divelog_images WHERE divelog_id = ?";
+            $imagesStmt = $conn->prepare($imagesQuery);
+            $imagesStmt->bind_param("i", $row['id']);
+            $imagesStmt->execute();
+            $imagesResult = $imagesStmt->get_result();
+            
+            $diveLog['images'] = [];
+            if ($imagesResult && $imagesResult->num_rows > 0) {
+                while ($imageRow = $imagesResult->fetch_assoc()) {
+                    $diveLog['images'][] = $imageRow;
+                }
+            }
+            
+            $diveLogs[] = $diveLog;
+        }
+    }
+    
+    // Recalculate statistics
+    $totalDives = 0;
+    $totalMinutes = 0;
+    $maxDepth = 0;
+    $locations = [];
+
+    foreach ($diveLogs as $dive) {
+        // All activities are diving now
+        $totalDives++;
+        
+        // Track locations
+        if (!in_array($dive['location'], $locations)) {
+            $locations[] = $dive['location'];
+        }
+        
+        // Track max depth
+        if (!empty($dive['depth']) && $dive['depth'] > $maxDepth) {
+            $maxDepth = $dive['depth'];
+        }
+        
+        // Track total minutes
+        if (!empty($dive['duration'])) {
+            $totalMinutes += $dive['duration'];
+        }
+    }
+
+    $totalActivities = $totalDives; // All are dives now
+    $locationCount = count($locations);
+    $avgDuration = $totalActivities > 0 ? round($totalMinutes / $totalActivities) : 0;
+
+    // Find the latest dive
+    $latestDive = null;
+    foreach ($diveLogs as $dive) {
+        if ($latestDive === null || strtotime($dive['date']) > strtotime($latestDive['date'])) {
+            $latestDive = $dive;
+        }
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">

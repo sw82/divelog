@@ -1,4 +1,19 @@
 document.addEventListener('DOMContentLoaded', function() {
+    // Force a hard refresh when coming from a delete operation
+    if (window.location.href.includes('cache_bust')) {
+        console.log('Cache bust parameter detected, performing full data refresh');
+        
+        // Clear any stored dive data from previous sessions
+        if (localStorage.getItem('diveMapCache')) {
+            localStorage.removeItem('diveMapCache');
+        }
+        
+        // Remove the cache_bust parameter from URL without reloading
+        const url = new URL(window.location.href);
+        url.searchParams.delete('cache_bust');
+        window.history.replaceState({}, document.title, url.toString());
+    }
+
     // Mobile menu toggle
     const mobileMenuToggle = document.getElementById('mobileMenuToggle');
     const menuItems = document.querySelector('.menu-items');
