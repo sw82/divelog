@@ -18,11 +18,18 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // Initialize the map with a world view
-    var map = L.map('map').setView([20, 0], 2); // Center at 0,0 with zoom level 2 (world view)
+    var map = L.map('map', {
+        minZoom: 2,  // Prevent zooming out beyond world view
+        maxBounds: [[-90, -180], [90, 180]],  // Restrict to one world
+        maxBoundsViscosity: 1.0,  // Make the bounds completely solid
+        worldCopyJump: false  // Disable world copies
+    }).setView([20, 0], 2); // Center at 0,0 with zoom level 2 (world view)
 
     // Add the tile layer (map background)
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
+        noWrap: true,  // Prevent multiple worlds horizontally
+        bounds: [[-90, -180], [90, 180]],  // Restrict tiles to one world
         attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
@@ -144,20 +151,15 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Function to create a colored marker
-    function createColoredMarker(lat, lng, color, count, activityType) {
+    function createColoredMarker(lat, lng, color, count) {
         let html;
-        
-        // Different styling for diving vs snorkeling
-        const isDiving = !activityType || activityType === 'diving';
-        const borderStyle = isDiving ? 'solid' : 'dashed';
-        const borderWidth = isDiving ? '2px' : '3px';
         
         if (count > 1) {
             // Create a marker with a number for multiple activities
-            html = `<div style="background-color: ${color}; width: 28px; height: 28px; border-radius: 14px; border: ${borderWidth} ${borderStyle} white; display: flex; align-items: center; justify-content: center; font-weight: bold; color: white;">${count}</div>`;
+            html = `<div style="background-color: ${color}; width: 28px; height: 28px; border-radius: 14px; border: 2px solid white; display: flex; align-items: center; justify-content: center; font-weight: bold; color: white;">${count}</div>`;
         } else {
             // Regular marker for a single activity
-            html = `<div style="background-color: ${color}; width: 24px; height: 24px; border-radius: 12px; border: ${borderWidth} ${borderStyle} white;"></div>`;
+            html = `<div style="background-color: ${color}; width: 24px; height: 24px; border-radius: 12px; border: 2px solid white;"></div>`;
         }
         
         // Create marker with interactive options
@@ -220,10 +222,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     const latLng = [parseFloat(diveLog.latitude), parseFloat(diveLog.longitude)];
                     const markerColor = getColorForYear(diveLog.year);
-                    const activityType = diveLog.activity_type || 'diving';
                     
                     // Create a marker for this dive
-                    let marker = createColoredMarker(latLng[0], latLng[1], markerColor, 1, activityType);
+                    let marker = createColoredMarker(latLng[0], latLng[1], markerColor, 1);
                     
                     // Create popup content for a single dive
                     const popupContent = createSingleDivePopup(diveLog);
@@ -279,14 +280,11 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Function to create popup content for a single dive
     function createSingleDivePopup(diveLog) {
-        const activityType = diveLog.activity_type || 'diving';
-        const activityLabel = activityType.charAt(0).toUpperCase() + activityType.slice(1);
-        
         var popupContent = `
             <div class="dive-popup">
                 <h3>${diveLog.location}</h3>
                 <p><strong>Date:</strong> ${diveLog.date}</p>
-                <p><strong>Activity:</strong> ${activityLabel}</p>`;
+                <p><strong>Activity:</strong> Diving</p>`;
         
         // Add dive details if available
         var detailsAdded = false;
@@ -440,14 +438,10 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Add activity type legend
             div.innerHTML += `
-                <h4 style="margin-top: 15px;">Activity Types</h4>
+                <h4 style="margin-top: 15px;">Activity Type</h4>
                 <div class="legend-item">
                     <span class="color-box" style="background-color: #4363d8; border: 2px solid white;"></span>
                     <span>Diving</span>
-                </div>
-                <div class="legend-item">
-                    <span class="color-box" style="background-color: #4363d8; border: 3px dashed white;"></span>
-                    <span>Snorkeling</span>
                 </div>`;
             
             return div;

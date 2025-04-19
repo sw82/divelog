@@ -42,10 +42,18 @@ Done with Vibe Coding.
 - [x] add air consumption (bar) and weight added as well as type of suit (wetsuit, drysuit, just shorts etc.), type of water (salt, sweet, sea, lake etc.). update database schema, csv export etc.
 - [x] I have a description and a coment field. why both?
 - [x] no need for the fish list at the moment. comment out and remove from the menu. but keep it in the database for each dive a list of fish. also make sure to show them when clicking on an entry or in the overview of dives.
+- [x] make leaflet map not zoom out more than the whole world 
+- [x] check the agenda of the map since there is no snorkeling anymore
+- [] sort dive list entry and create sorting for each column
 
 
 ## Recent Changes
 
+- **Map Improvements**:
+  - Limited map zoom to prevent viewing multiple worlds
+  - Removed snorkeling from map legend to match actual data
+  - Added bounds restriction to keep users within the world map
+  - Enhanced tile layer configuration for better performance
 - **Enhanced CSV Import Reliability**:
   - Fixed "Data truncated" errors for ENUM fields by switching to direct SQL queries
   - Improved handling of suit_type and water_type entries with proper validation
