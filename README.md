@@ -50,76 +50,19 @@ Done with Vibe Coding.
 
 ## Recent Changes
 
-- **Dive List Enhancements**:
-  - Added column sorting functionality with toggling between ascending and descending order
-  - Implemented dive deletion with confirmation dialog and related record cleanup
-  - Added visual indicators for sort direction
-  - Added success message when a dive is deleted
-  - Improved table styling with interactive sortable headers
-- **Map Improvements**:
-  - Limited map zoom to prevent viewing multiple worlds
-  - Removed snorkeling from map legend to match actual data
-  - Added bounds restriction to keep users within the world map
-  - Enhanced tile layer configuration for better performance
-- **Enhanced CSV Import Reliability**:
-  - Fixed "Data truncated" errors for ENUM fields by switching to direct SQL queries
-  - Improved handling of suit_type and water_type entries with proper validation
-  - Added fallback mechanisms for invalid field values to prevent import failures
-  - Enhanced error logging for better troubleshooting
-  - Implemented robust handling of European number formats (comma as decimal separator)
-- **Enhanced Data Privacy**:
-  - Added .gitignore rules to prevent database backups from being uploaded
-  - Configured separate .gitignore in backups directory for SQL files
-  - Protected sensitive configuration files from accidental commits
-  - Added proper handling of uploads directory to keep structure in git but exclude content
-- **Fixed File Upload Issues**:
-  - Fixed file input handling for CSV import to prevent double-click requirement
-  - Improved UX for file selection with proper styling
-- **Removed Snorkeling Option**:
-  - Simplified activity tracking to focus on diving only
-  - Updated database schema to remove snorkeling as an activity type
-  - Converted existing snorkeling entries to diving
-  - Streamlined UI by removing snorkeling filters and toggle options
-- **Streamlined Navigation**:
-  - Removed Fish List from main navigation menu
-  - Maintained fish functionality within dive details 
-  - Preserved fish sighting tracking for individual dive logs
-  - Directed fish-related pages to appropriate navigation contexts
-- **Clarified Field Purposes**:
-  - Distinguished between "Description" (objective dive site observations) and "Comments" (personal notes)
-  - Enhanced the organization of dive information in a more structured way
-  - Maintained compatibility with standard dive logging practices
-- **Added Technical Dive Details**:
-  - Added air consumption tracking (start and end pressure in bar)
-  - Added weight tracking (in kg)
-  - Added suit type selection (wetsuit, drysuit, shortie, swimsuit, other)
-  - Added water type classification (salt, fresh, brackish)
-  - Updated forms, CSV import/export, and database schema
-- **Improved CSV Import**:
-  - Added automatic detection of CSV delimiters (comma or semicolon)
-  - Enhanced support for semicolon-separated values to better preserve comma-containing data
-  - Enhanced empty row detection to skip blank lines
-  - Added support for European number formats (using comma as decimal separator)
-  - Improved error messages for more user-friendly troubleshooting
-  - Added time-based duplicate detection to support multiple dives at the same location on the same day
-  - Enhanced template with examples showing multiple dives at same location with different times
-  - Added warnings when time information is missing but might be needed
-- **Added Dive Site Name Field**: Added specific dive site name field separate from location
-- **CSV Import Geocoding**: Added automatic geocoding for CSV imports with location but no coordinates
-- **CSV Export/Import Updates**: Updated CSV template with clearer field requirements
-- **Improved Data Export**: Enhanced CSV export with proper column headers and dive site field
-- **Enhanced Map Styling**: Improved map legend/filter background for better visibility
-- **Updated UI Elements**: Removed duplicate headings and streamlined interface
-- **Added Latest Dive**: Added latest dive information to statistics dashboard
-- **Enhanced Map Clustering**: Implemented Leaflet.markercluster for superior marker clustering
-  - Dynamic clustering based on zoom level
-  - Interactive cluster markers with summary popups
-  - Improved performance for maps with many dive locations
-  - Custom-styled clusters matching the application theme
-- **Bug Fixes**:
-  - Fixed "Invalid Date" display issue in map popups for certain date formats
-  - Improved date handling with robust error checking and fallback mechanisms
-  - Standardized date formatting across PHP and JavaScript components
+- **Enhanced Map Refresh System**:
+  - Added robust cache-busting for deleted dive entries
+  - Implemented forced data reload after deletion operations
+  - Added browser cache controls to prevent stale data display
+  - Fixed issue where deleted dives would still appear on map
+- **Fish Management Integration**: Removed fish list from navigation menu while maintaining full fish sighting functionality within dive details.
+- **Enhanced CSV Import Reliability**: Fixed errors related to ENUM fields and improved handling of suit_type and water_type entries.
+- **Enhanced Data Privacy**: Added .gitignore rules to prevent sensitive data from being uploaded.
+- **Fixed File Upload Issues**: Improved file input handling for CSV imports.
+- **Removed Snorkeling Option**: Streamlined activity tracking to focus solely on diving.
+- **Clarified Field Purposes**: Distinction between "Description" and "Comments" fields.
+- **Added Technical Dive Details**: Included tracking for air consumption, weight, suit type, and water type.
+- **Improved CSV Import**: Enhanced detection of CSV delimiters and error handling.
 
 ## Project Changes
 
@@ -387,4 +330,3 @@ To address the remaining security concerns, the following improvements should be
 - Protection against SQL injection vulnerabilities
 - Improved operational safety with better confirmation mechanisms
 - Enhanced error handling and recovery procedures
-
