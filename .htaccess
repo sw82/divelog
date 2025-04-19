@@ -1,0 +1,27 @@
+# Prevent direct access to .htaccess
+<Files .htaccess>
+    Order Allow,Deny
+    Deny from all
+</Files>
+
+# Prevent direct access to sensitive files
+<FilesMatch "(^db\.php|config\.php|\.(bak|config|sql|gz|fla|ini|log|sh|inc|swp|dist)|~)$">
+    Order Allow,Deny
+    Deny from all
+    Satisfy All
+</FilesMatch>
+
+# Allow direct access to specific file types in uploads
+<FilesMatch "\.(jpg|jpeg|png|gif|pdf|webp)$">
+    Order Allow,Deny
+    Allow from all
+</FilesMatch>
+
+# Handle removed fishlist page
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^fishlist\.php$ manage_db.php [R=301,L]
+</IfModule>
+
+# Error handling
+ErrorDocument 404 /404.php 

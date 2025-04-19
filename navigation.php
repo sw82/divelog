@@ -5,7 +5,6 @@
     <div class="menu-items">
         <a href="index.php" id="nav-index">Dive Map</a>
         <a href="divelist.php" id="nav-divelist">Divelist</a>
-        <a href="fishlist.php" id="nav-fish">Fish List</a>
         <a href="manage_db.php" id="nav-db">Manage Database</a>
     </div>
 </nav>
@@ -25,10 +24,9 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('nav-index').classList.add('active');
     } else if (filename === 'divelist.php') {
         document.getElementById('nav-divelist').classList.add('active');
-    } else if (filename === 'fishlist.php' || filename === 'fish_details.php') {
-        document.getElementById('nav-fish').classList.add('active');
-    } else if (filename === 'fish_manager.php') {
-        document.getElementById('nav-fish').classList.add('active');
+    } else if (filename === 'fish_details.php' || filename === 'fish_manager.php') {
+        // For fish pages, activate the Manage Database link since they're related to data management
+        document.getElementById('nav-db').classList.add('active');
     } else if (filename === 'populate_db.php' || filename === 'edit_dive.php' || filename === 'view_dive.php' || 
                filename === 'manage_db.php' || filename === 'backup_db.php' || filename === 'update_database.php' || 
                filename === 'import.php' || filename === 'process_ocr.php' || filename === 'save_ocr_data.php' || 

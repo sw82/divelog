@@ -41,7 +41,7 @@ Done with Vibe Coding.
 - [x] remove snorkeling again. this supposed to be a divers log
 - [x] add air consumption (bar) and weight added as well as type of suit (wetsuit, drysuit, just shorts etc.), type of water (salt, sweet, sea, lake etc.). update database schema, csv export etc.
 - [x] I have a description and a coment field. why both?
-
+- [x] no need for the fish list at the moment. comment out and remove from the menu. but keep it in the database for each dive a list of fish. also make sure to show them when clicking on an entry or in the overview of dives.
 
 
 ## Recent Changes
@@ -59,6 +59,11 @@ Done with Vibe Coding.
   - Updated database schema to remove snorkeling as an activity type
   - Converted existing snorkeling entries to diving
   - Streamlined UI by removing snorkeling filters and toggle options
+- **Streamlined Navigation**:
+  - Removed Fish List from main navigation menu
+  - Maintained fish functionality within dive details 
+  - Preserved fish sighting tracking for individual dive logs
+  - Directed fish-related pages to appropriate navigation contexts
 - **Clarified Field Purposes**:
   - Distinguished between "Description" (objective dive site observations) and "Comments" (personal notes)
   - Enhanced the organization of dive information in a more structured way
