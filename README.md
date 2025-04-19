@@ -44,11 +44,18 @@ Done with Vibe Coding.
 - [x] no need for the fish list at the moment. comment out and remove from the menu. but keep it in the database for each dive a list of fish. also make sure to show them when clicking on an entry or in the overview of dives.
 - [x] make leaflet map not zoom out more than the whole world 
 - [x] check the agenda of the map since there is no snorkeling anymore
-- [] sort dive list entry and create sorting for each column
+- [x] sort dive list entry and create sorting for each column
+- [x] for the divelist also add a "remove dive" and all functions accordingly
 
 
 ## Recent Changes
 
+- **Dive List Enhancements**:
+  - Added column sorting functionality with toggling between ascending and descending order
+  - Implemented dive deletion with confirmation dialog and related record cleanup
+  - Added visual indicators for sort direction
+  - Added success message when a dive is deleted
+  - Improved table styling with interactive sortable headers
 - **Map Improvements**:
   - Limited map zoom to prevent viewing multiple worlds
   - Removed snorkeling from map legend to match actual data

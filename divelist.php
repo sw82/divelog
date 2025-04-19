@@ -5,8 +5,20 @@ include 'db.php';
 // Initialize search variables
 $searchTerm = '';
 $searchResults = false;
-$activityFilter = isset($_GET['activity']) ? $_GET['activity'] : 'all';
 $yearFilter = isset($_GET['year']) ? $_GET['year'] : 'all';
+$sortField = isset($_GET['sort']) ? $_GET['sort'] : 'date';
+$sortOrder = isset($_GET['order']) ? $_GET['order'] : 'desc';
+
+// Validate sort field to prevent SQL injection
+$allowedSortFields = ['date', 'location', 'depth', 'duration', 'rating'];
+if (!in_array($sortField, $allowedSortFields)) {
+    $sortField = 'date';
+}
+
+// Validate sort order
+if ($sortOrder !== 'asc' && $sortOrder !== 'desc') {
+    $sortOrder = 'desc';
+}
 
 // Handle search request
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search'])) {
@@ -14,9 +26,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search'])) {
     $searchResults = true;
 }
 
+// Handle delete request
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete_dive' && isset($_POST['dive_id'])) {
+    $diveId = intval($_POST['dive_id']);
+    
+    // Start transaction to ensure all related data is deleted
+    $conn->begin_transaction();
+    
+    try {
+        // Delete related fish sightings
+        $stmt = $conn->prepare("DELETE FROM fish_sightings WHERE divelog_id = ?");
+        $stmt->bind_param("i", $diveId);
+        $stmt->execute();
+        
+        // Delete related images
+        $stmt = $conn->prepare("DELETE FROM divelog_images WHERE divelog_id = ?");
+        $stmt->bind_param("i", $diveId);
+        $stmt->execute();
+        
+        // Delete the dive log entry
+        $stmt = $conn->prepare("DELETE FROM divelogs WHERE id = ?");
+        $stmt->bind_param("i", $diveId);
+        $stmt->execute();
+        
+        // Commit the transaction
+        $conn->commit();
+        
+        // Redirect to prevent form resubmission
+        header("Location: divelist.php?year={$yearFilter}&message=deleted");
+        exit;
+    } catch (Exception $e) {
+        // Rollback the transaction if an error occurs
+        $conn->rollback();
+        $error_message = "Error deleting dive log: " . $e->getMessage();
+    }
+}
+
+// Check for success message
+$message = isset($_GET['message']) ? $_GET['message'] : '';
+
+// Get unique fish species count
+$fishSpeciesQuery = "SELECT COUNT(DISTINCT fish_species_id) as unique_species FROM fish_sightings";
+$fishSpeciesResult = $conn->query($fishSpeciesQuery);
+$uniqueFishSpecies = 0;
+if ($fishSpeciesResult && $fishSpeciesResult->num_rows > 0) {
+    $uniqueFishSpecies = $fishSpeciesResult->fetch_assoc()['unique_species'];
+}
+
 // Fetch dive logs from the database
 $query = "SELECT d.*, 
-                 (SELECT COUNT(*) FROM fish_sightings WHERE divelog_id = d.id) as fish_count,
+                 (SELECT COUNT(DISTINCT fish_species_id) FROM fish_sightings WHERE divelog_id = d.id) as fish_count,
                  (SELECT COUNT(*) FROM divelog_images WHERE divelog_id = d.id) as image_count
           FROM divelogs d";
 $params = [];
@@ -46,8 +105,8 @@ if (!empty($conditions)) {
     $query .= " WHERE " . implode(" AND ", $conditions);
 }
 
-// Sort by date descending
-$query .= " ORDER BY d.date DESC";
+// Add sorting
+$query .= " ORDER BY d.{$sortField} {$sortOrder}";
 
 // Prepare and execute the query
 if (!empty($params)) {
@@ -63,18 +122,12 @@ if (!empty($params)) {
 
 // Count records
 $totalDives = 0;
-$totalSnorkeling = 0;
 $diveRecords = [];
 $years = [];
 
 if ($result && $result->num_rows > 0) {
     while ($row = $result->fetch_assoc()) {
-        // Track counts by activity type
-        if ($row['activity_type'] === 'snorkeling') {
-            $totalSnorkeling++;
-        } else {
-            $totalDives++;
-        }
+        $totalDives++;
         
         // Add year to years array for filter
         $year = date('Y', strtotime($row['date']));
@@ -147,19 +200,11 @@ $avgDuration = $totalRecords > 0 ? round($totalDuration / $totalRecords) : 0;
             border-top: 3px solid #2196F3;
         }
         
-        .snorkel-stat {
-            border-top-color: #4CAF50;
-        }
-        
         .stat-value {
             font-size: 24px;
             font-weight: bold;
             color: #2196F3;
             margin-bottom: 5px;
-        }
-        
-        .snorkel-stat .stat-value {
-            color: #4CAF50;
         }
         
         .stat-label {
@@ -193,7 +238,7 @@ $avgDuration = $totalRecords > 0 ? round($totalDuration / $totalRecords) : 0;
             margin-right: 5px;
         }
         
-        .activity-filter, .year-filter {
+        .year-filter {
             display: flex;
             gap: 5px;
         }
@@ -214,8 +259,9 @@ $avgDuration = $totalRecords > 0 ? round($totalDuration / $totalRecords) : 0;
         
         .filter-btn.active {
             background-color: #2196F3;
-            color: white;
+            color: #fff;
             border-color: #2196F3;
+            font-weight: 500;
         }
         
         .year-filter .filter-btn.active {
@@ -306,6 +352,20 @@ $avgDuration = $totalRecords > 0 ? round($totalDuration / $totalRecords) : 0;
             color: #555;
         }
         
+        .fish-count-link {
+            padding: 3px 8px;
+            border-radius: 12px;
+            transition: background-color 0.2s;
+            background-color: #e6f7ff;
+            border: 1px solid #b3e0ff;
+        }
+        
+        .fish-count-link:hover {
+            background-color: #b3e0ff;
+            color: #0055b3;
+            box-shadow: 0 0 4px rgba(0, 123, 255, 0.3);
+        }
+        
         .dive-actions {
             white-space: nowrap;
         }
@@ -341,24 +401,6 @@ $avgDuration = $totalRecords > 0 ? round($totalDuration / $totalRecords) : 0;
             border-radius: 8px;
         }
         
-        .diving-row {
-            border-left: 4px solid #2196F3;
-        }
-        
-        .activity-badge {
-            display: inline-block;
-            padding: 3px 8px;
-            border-radius: 12px;
-            font-size: 11px;
-            color: white;
-            margin-right: 5px;
-            font-weight: 600;
-        }
-        
-        .diving-badge {
-            background-color: #2196F3;
-        }
-        
         .location-info {
             line-height: 1.4;
         }
@@ -392,6 +434,121 @@ $avgDuration = $totalRecords > 0 ? round($totalDuration / $totalRecords) : 0;
                 min-width: 120px;
             }
         }
+        
+        /* Styles for fish sightings modal */
+        .fish-card {
+            transition: transform 0.2s;
+            margin-bottom: 1rem;
+        }
+        
+        .fish-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .fish-img-container {
+            height: 140px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .fish-img {
+            max-height: 130px;
+            max-width: 100%;
+            object-fit: contain;
+        }
+        
+        .fish-icon {
+            font-size: 3.5rem;
+            color: #adb5bd;
+        }
+        
+        .fish-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 0.25rem;
+            font-size: 0.95rem;
+        }
+        
+        .fish-scientific {
+            font-style: italic;
+            color: #666;
+            font-size: 0.85rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .fish-details {
+            font-size: 0.85rem;
+            color: #555;
+        }
+        
+        /* Highlight fish count more prominently */
+        .fish-count-link .fa-fish {
+            font-size: 1.1rem;
+        }
+        
+        .fish-count-link span {
+            font-weight: bold;
+        }
+        
+        /* Add styles for sortable headers */
+        th.sortable {
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            padding-right: 20px !important;
+        }
+        
+        th.sortable:hover {
+            background-color: #f0f0f0;
+        }
+        
+        th.sortable::after {
+            content: '⇕';
+            position: absolute;
+            right: 6px;
+            color: #aaa;
+        }
+        
+        th.sortable.sort-asc::after {
+            content: '↑';
+            color: #2196F3;
+        }
+        
+        th.sortable.sort-desc::after {
+            content: '↓';
+            color: #2196F3;
+        }
+        
+        /* Style for delete button */
+        .action-btn.delete {
+            color: #F44336;
+        }
+        
+        .action-btn.delete:hover {
+            background-color: #FFEBEE;
+            color: #D32F2F;
+        }
+        
+        /* Success message */
+        .alert-floating {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1050;
+            animation: fadeInOut 5s forwards;
+        }
+        
+        @keyframes fadeInOut {
+            0% { opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { opacity: 0; display: none; }
+        }
     </style>
 </head>
 <body>
@@ -399,6 +556,12 @@ $avgDuration = $totalRecords > 0 ? round($totalDuration / $totalRecords) : 0;
     
     <div class="dive-list-container">
         <h1 class="text-center my-4">Dive Log Entries</h1>
+        
+        <?php if ($message === 'deleted'): ?>
+        <div class="alert alert-success alert-floating">
+            Dive log entry successfully deleted!
+        </div>
+        <?php endif; ?>
         
         <!-- Statistics Section -->
         <div class="dive-stats">
@@ -415,30 +578,21 @@ $avgDuration = $totalRecords > 0 ? round($totalDuration / $totalRecords) : 0;
                 <div class="stat-label">Average Duration</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value"><?php echo $totalFishSightings; ?></div>
-                <div class="stat-label">Fish Sightings</div>
+                <div class="stat-value"><?php echo $uniqueFishSpecies; ?></div>
+                <div class="stat-label">Unique Fish Species</div>
             </div>
         </div>
         
         <!-- Filter Bar -->
         <div class="filter-bar">
-            <div class="filter-group">
-                <div class="filter-label">Activity:</div>
-                <div class="activity-filter">
-                    <a href="?activity=all&year=<?php echo $yearFilter; ?><?php echo !empty($searchTerm) ? '&search='.urlencode($searchTerm) : ''; ?>" class="filter-btn active">
-                        Diving
-                    </a>
-                </div>
-            </div>
-            
             <?php if (count($years) > 1): ?>
-            <div class="filter-label ms-3">Year:</div>
+            <div class="filter-label">Year:</div>
             <div class="year-filter">
-                <a href="?activity=<?php echo $activityFilter; ?>&year=all<?php echo !empty($searchTerm) ? '&search='.urlencode($searchTerm) : ''; ?>" class="filter-btn <?php echo $yearFilter === 'all' ? 'active' : ''; ?>">
+                <a href="?year=all<?php echo !empty($searchTerm) ? '&search='.urlencode($searchTerm) : ''; ?>" class="filter-btn <?php echo $yearFilter === 'all' ? 'active' : ''; ?>">
                     All Years
                 </a>
                 <?php foreach ($years as $year): ?>
-                <a href="?activity=<?php echo $activityFilter; ?>&year=<?php echo $year; ?><?php echo !empty($searchTerm) ? '&search='.urlencode($searchTerm) : ''; ?>" class="filter-btn <?php echo $yearFilter === (string)$year ? 'active' : ''; ?>">
+                <a href="?year=<?php echo $year; ?><?php echo !empty($searchTerm) ? '&search='.urlencode($searchTerm) : ''; ?>" class="filter-btn <?php echo $yearFilter === (string)$year ? 'active' : ''; ?>">
                     <?php echo $year; ?>
                 </a>
                 <?php endforeach; ?>
@@ -446,9 +600,6 @@ $avgDuration = $totalRecords > 0 ? round($totalDuration / $totalRecords) : 0;
             <?php endif; ?>
             
             <form method="GET" action="" class="search-form">
-                <?php if ($activityFilter !== 'all'): ?>
-                <input type="hidden" name="activity" value="<?php echo htmlspecialchars($activityFilter); ?>">
-                <?php endif; ?>
                 <?php if ($yearFilter !== 'all'): ?>
                 <input type="hidden" name="year" value="<?php echo htmlspecialchars($yearFilter); ?>">
                 <?php endif; ?>
@@ -465,7 +616,7 @@ $avgDuration = $totalRecords > 0 ? round($totalDuration / $totalRecords) : 0;
         <?php if ($searchResults): ?>
         <div class="alert alert-info">
             Found <?php echo count($diveRecords); ?> results for "<?php echo htmlspecialchars($searchTerm); ?>"
-            <a href="?activity=<?php echo $activityFilter; ?>&year=<?php echo $yearFilter; ?>" class="float-end">Clear Search</a>
+            <a href="?year=<?php echo $yearFilter; ?>" class="float-end">Clear Search</a>
         </div>
         <?php endif; ?>
         
@@ -473,13 +624,13 @@ $avgDuration = $totalRecords > 0 ? round($totalDuration / $totalRecords) : 0;
             <table class="dive-table">
                 <thead>
                     <tr>
-                        <th style="width: 120px;">Date</th>
-                        <th>Location</th>
+                        <th class="sortable <?php echo $sortField === 'date' ? 'sort-'.$sortOrder : ''; ?>" onclick="sortTable('date')">Date</th>
+                        <th class="sortable <?php echo $sortField === 'location' ? 'sort-'.$sortOrder : ''; ?>" onclick="sortTable('location')">Location</th>
                         <th class="optional-column">Details</th>
-                        <th style="width: 120px;">Depth/Time</th>
-                        <th style="width: 120px;">Content</th>
-                        <th style="width: 80px;">Rating</th>
-                        <th style="width: 100px;">Actions</th>
+                        <th class="sortable <?php echo $sortField === 'depth' ? 'sort-'.$sortOrder : ''; ?>" onclick="sortTable('depth')">Depth/Time</th>
+                        <th>Content</th>
+                        <th class="sortable <?php echo $sortField === 'rating' ? 'sort-'.$sortOrder : ''; ?>" onclick="sortTable('rating')">Rating</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -489,18 +640,12 @@ $avgDuration = $totalRecords > 0 ? round($totalDuration / $totalRecords) : 0;
                     </tr>
                     <?php else: ?>
                         <?php foreach ($diveRecords as $dive): 
-                            $isDiving = $dive['activity_type'] !== 'snorkeling';
                             $diveDate = strtotime($dive['date']);
                         ?>
-                        <tr class="<?php echo $isDiving ? 'diving-row' : 'snorkeling-row'; ?>">
+                        <tr>
                             <td class="dive-date">
                                 <div class="dive-date-day"><?php echo date('d M', $diveDate); ?></div>
                                 <div class="dive-date-year"><?php echo date('Y', $diveDate); ?></div>
-                                <div class="mt-1">
-                                    <span class="activity-badge <?php echo $isDiving ? 'diving-badge' : 'snorkeling-badge'; ?>">
-                                        <?php echo $isDiving ? 'Dive' : 'Snorkel'; ?>
-                                    </span>
-                                </div>
                             </td>
                             <td>
                                 <div class="location-info">
@@ -540,7 +685,7 @@ $avgDuration = $totalRecords > 0 ? round($totalDuration / $totalRecords) : 0;
                                 <?php endif; ?>
                             </td>
                             <td>
-                                <?php if ($isDiving && !empty($dive['depth'])): ?>
+                                <?php if (!empty($dive['depth'])): ?>
                                 <div><i class="fas fa-arrow-down fa-sm text-primary"></i> <strong><?php echo $dive['depth']; ?> m</strong></div>
                                 <?php endif; ?>
                                 
@@ -551,16 +696,17 @@ $avgDuration = $totalRecords > 0 ? round($totalDuration / $totalRecords) : 0;
                             <td>
                                 <div class="dive-counts">
                                     <?php if (!empty($dive['fish_count'])): ?>
-                                    <div class="dive-count">
+                                    <div class="dive-count fish-count-link" onclick="loadFishSightings(<?php echo $dive['id']; ?>, '<?php echo addslashes($dive['location']); ?>')" style="cursor: pointer;" title="Click to view fish species">
                                         <i class="fas fa-fish text-primary"></i>
-                                        <span><?php echo $dive['fish_count']; ?></span>
+                                        <span><?php echo $dive['fish_count']; ?> <?php echo $dive['fish_count'] > 1 ? 'species' : 'species'; ?></span>
+                                        <i class="fas fa-eye ms-1" style="font-size: 0.8rem; opacity: 0.7;"></i>
                                     </div>
                                     <?php endif; ?>
                                     
                                     <?php if (!empty($dive['image_count'])): ?>
                                     <div class="dive-count">
                                         <i class="fas fa-camera text-success"></i>
-                                        <span><?php echo $dive['image_count']; ?></span>
+                                        <span><?php echo $dive['image_count']; ?> <?php echo $dive['image_count'] > 1 ? 'photos' : 'photo'; ?></span>
                                     </div>
                                     <?php endif; ?>
                                 </div>
@@ -588,6 +734,9 @@ $avgDuration = $totalRecords > 0 ? round($totalDuration / $totalRecords) : 0;
                                 <a href="#" class="action-btn" title="View on Map" onclick="showOnMap(<?php echo $dive['latitude']; ?>, <?php echo $dive['longitude']; ?>, '<?php echo addslashes($dive['location']); ?>')">
                                     <i class="fas fa-map-marker-alt"></i>
                                 </a>
+                                <a href="#" class="action-btn delete" title="Delete Dive" onclick="confirmDelete(<?php echo $dive['id']; ?>, '<?php echo addslashes($dive['location']); ?>')">
+                                    <i class="fas fa-trash-alt"></i>
+                                </a>
                             </td>
                         </tr>
                         <?php endforeach; ?>
@@ -605,6 +754,140 @@ $avgDuration = $totalRecords > 0 ? round($totalDuration / $totalRecords) : 0;
             window.location.href = 'index.php?lat=' + lat + '&lng=' + lng + '&title=' + encodeURIComponent(title);
             return false;
         }
+        
+        // Function to sort the table
+        function sortTable(field) {
+            // Get current URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            
+            // Determine sort order (toggle or default to desc)
+            let order = 'desc';
+            if (urlParams.get('sort') === field && urlParams.get('order') === 'desc') {
+                order = 'asc';
+            }
+            
+            // Set sort parameters
+            urlParams.set('sort', field);
+            urlParams.set('order', order);
+            
+            // Redirect to the same page with updated sort parameters
+            window.location.href = '?' + urlParams.toString();
+        }
+        
+        // Function to confirm delete
+        function confirmDelete(diveId, location) {
+            if (confirm(`Are you sure you want to delete the dive at "${location}"?\n\nThis will permanently delete the dive log and all associated fish sightings and images. This action cannot be undone.`)) {
+                // Create and submit a form to delete the dive
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = 'divelist.php';
+                
+                const actionInput = document.createElement('input');
+                actionInput.type = 'hidden';
+                actionInput.name = 'action';
+                actionInput.value = 'delete_dive';
+                
+                const diveIdInput = document.createElement('input');
+                diveIdInput.type = 'hidden';
+                diveIdInput.name = 'dive_id';
+                diveIdInput.value = diveId;
+                
+                form.appendChild(actionInput);
+                form.appendChild(diveIdInput);
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
+        
+        // Automatically hide the success message after 5 seconds
+        setTimeout(function() {
+            const successAlert = document.querySelector('.alert-floating');
+            if (successAlert) {
+                successAlert.style.display = 'none';
+            }
+        }, 5000);
+
+        // Function to load fish sightings for a specific dive
+        function loadFishSightings(diveId, diveName) {
+            // Fetch fish sightings data via AJAX
+            fetch('get_fish_sightings.php?dive_id=' + diveId)
+                .then(response => response.json())
+                .then(data => {
+                    // Update modal title
+                    document.getElementById('fishModalLabel').textContent = 'Fish Sightings - ' + diveName;
+                    
+                    // Get the container for fish sightings
+                    const fishContainer = document.getElementById('fishSightingsContainer');
+                    fishContainer.innerHTML = '';
+                    
+                    if (data.length === 0) {
+                        fishContainer.innerHTML = '<p class="text-center">No fish sightings recorded for this dive.</p>';
+                        return;
+                    }
+                    
+                    // Create HTML for each fish sighting
+                    let fishHTML = '<div class="row">';
+                    data.forEach(fish => {
+                        fishHTML += `
+                            <div class="col-md-4 col-sm-6 mb-3">
+                                <div class="card h-100 fish-card">
+                                    <div class="fish-img-container">
+                                        ${fish.image_url ? 
+                                            `<img src="${fish.image_url}" alt="${fish.common_name}" class="fish-img">` : 
+                                            `<div class="fish-icon"><i class="fas fa-fish"></i></div>`
+                                        }
+                                    </div>
+                                    <div class="card-body">
+                                        <h5 class="fish-name">${fish.common_name || 'Unknown Fish'}</h5>
+                                        ${fish.scientific_name ? `<p class="fish-scientific">${fish.scientific_name}</p>` : ''}
+                                        <div class="fish-details">
+                                            ${fish.quantity ? `<p class="mb-1"><i class="fas fa-hashtag fa-sm me-1"></i> ${fish.quantity}</p>` : ''}
+                                            ${fish.notes ? `<p class="mb-0"><i class="fas fa-comment-alt fa-sm me-1"></i> ${fish.notes}</p>` : ''}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    fishHTML += '</div>';
+                    
+                    fishContainer.innerHTML = fishHTML;
+                    
+                    // Show the modal
+                    const fishModal = new bootstrap.Modal(document.getElementById('fishModal'));
+                    fishModal.show();
+                })
+                .catch(error => {
+                    console.error('Error fetching fish sightings:', error);
+                    alert('Failed to load fish sightings. Please try again.');
+                });
+        }
     </script>
+
+    <!-- Fish Sightings Modal -->
+    <div class="modal fade" id="fishModal" tabindex="-1" aria-labelledby="fishModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="fishModalLabel">Fish Sightings</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body py-4">
+                    <div id="fishSightingsContainer">
+                        <!-- Fish sightings will be loaded here -->
+                        <div class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2 text-muted">Loading fish sightings...</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html> 
