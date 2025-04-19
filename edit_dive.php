@@ -174,6 +174,37 @@ if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
                 } else {
                     $error_message = "Error deleting fish sighting: " . $stmt->error;
                 }
+            } elseif ($_POST['action'] === 'delete_dive' && isset($_POST['confirm_delete']) && $_POST['confirm_delete'] === 'yes') {
+                // Delete entire dive log and related data
+                $conn->begin_transaction();
+                
+                try {
+                    // Delete related fish sightings
+                    $stmt = $conn->prepare("DELETE FROM fish_sightings WHERE divelog_id = ?");
+                    $stmt->bind_param("i", $dive_id);
+                    $stmt->execute();
+                    
+                    // Delete related images
+                    $stmt = $conn->prepare("DELETE FROM divelog_images WHERE divelog_id = ?");
+                    $stmt->bind_param("i", $dive_id);
+                    $stmt->execute();
+                    
+                    // Delete the dive log entry
+                    $stmt = $conn->prepare("DELETE FROM divelogs WHERE id = ?");
+                    $stmt->bind_param("i", $dive_id);
+                    $stmt->execute();
+                    
+                    // Commit the transaction
+                    $conn->commit();
+                    
+                    // Redirect to dive list with success message
+                    header("Location: divelist.php?message=deleted");
+                    exit;
+                } catch (Exception $e) {
+                    // Rollback the transaction if an error occurs
+                    $conn->rollback();
+                    $error_message = "Error deleting dive log: " . $e->getMessage();
+                }
             }
         }
     }
@@ -409,9 +440,48 @@ $fish_species = getAllFishSpecies();
                     <textarea class="form-control" id="comments" name="comments" rows="3"><?php echo htmlspecialchars($divelog['comments'] ?? ''); ?></textarea>
                 </div>
                 
-                <button type="submit" class="btn btn-primary">Update Dive Log</button>
-                <a href="index.php" class="btn btn-secondary">Back to Map</a>
+                <div class="form-group d-flex justify-content-between align-items-center">
+                    <div>
+                        <button type="submit" class="btn btn-primary">Update Dive Log</button>
+                        <a href="index.php" class="btn btn-secondary">Back to Map</a>
+                    </div>
+                    <button type="button" class="btn btn-danger" data-toggle="modal" data-target="#deleteConfirmModal">
+                        <i class="fas fa-trash-alt mr-1"></i> Delete Dive Log
+                    </button>
+                </div>
             </form>
+            
+            <!-- Delete Confirmation Modal -->
+            <div class="modal fade" id="deleteConfirmModal" tabindex="-1" role="dialog" aria-labelledby="deleteConfirmModalLabel" aria-hidden="true">
+                <div class="modal-dialog" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header bg-danger text-white">
+                            <h5 class="modal-title" id="deleteConfirmModalLabel">Confirm Deletion</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <p>Are you sure you want to delete this dive log entry for <strong><?php echo htmlspecialchars($divelog['location'] ?? ''); ?></strong>?</p>
+                            <p><strong>Warning:</strong> This will permanently delete:</p>
+                            <ul>
+                                <li>All dive details</li>
+                                <li><?php echo count($dive_images); ?> uploaded image(s)</li>
+                                <li><?php echo count($fish_sightings); ?> fish sighting(s)</li>
+                            </ul>
+                            <p class="text-danger"><strong>This action cannot be undone!</strong></p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                            <form method="POST">
+                                <input type="hidden" name="action" value="delete_dive">
+                                <input type="hidden" name="confirm_delete" value="yes">
+                                <button type="submit" class="btn btn-danger">Delete Permanently</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
             
             <hr>
             
@@ -504,6 +574,7 @@ $fish_species = getAllFishSpecies();
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/js/all.min.js"></script>
     <script>
         // Preview images before upload
         document.getElementById('images').addEventListener('change', function(event) {
