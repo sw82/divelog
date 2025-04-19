@@ -80,8 +80,28 @@ function parseCSVRow($row) {
     if (isset($row[19]) && $row[19] !== '') $diveLog['air_consumption_start'] = intval($row[19]);
     if (isset($row[20]) && $row[20] !== '') $diveLog['air_consumption_end'] = intval($row[20]);
     if (isset($row[21]) && $row[21] !== '') $diveLog['weight'] = floatval(str_replace(',', '.', $row[21])); // Handle European number format
-    if (isset($row[22])) $diveLog['suit_type'] = $row[22];
-    if (isset($row[23])) $diveLog['water_type'] = $row[23];
+    
+    // Normalize suit_type to match the allowed enum values
+    if (isset($row[22]) && !empty($row[22])) {
+        $suitType = strtolower(trim($row[22]));
+        if (in_array($suitType, ['wetsuit', 'drysuit', 'shortie', 'swimsuit', 'other'])) {
+            $diveLog['suit_type'] = $suitType;
+        } else {
+            // Default to 'other' if not a valid type
+            $diveLog['suit_type'] = 'other';
+        }
+    }
+    
+    // Normalize water_type to match the allowed enum values
+    if (isset($row[23]) && !empty($row[23])) {
+        $waterType = strtolower(trim($row[23]));
+        if (in_array($waterType, ['salt', 'fresh', 'brackish'])) {
+            $diveLog['water_type'] = $waterType;
+        } else {
+            // Default to empty if not a valid type
+            $diveLog['water_type'] = '';
+        }
+    }
     
     return $diveLog;
 }
@@ -143,15 +163,25 @@ function validateDiveLog($diveLog) {
     }
     
     // Validate suit_type if provided
-    if (!empty($diveLog['suit_type']) && 
-        !in_array(strtolower($diveLog['suit_type']), ['wetsuit', 'drysuit', 'shortie', 'swimsuit', 'other'])) {
-        $errors[] = "Suit type must be one of: wetsuit, drysuit, shortie, swimsuit, other";
+    if (!empty($diveLog['suit_type'])) {
+        $suitType = strtolower(trim($diveLog['suit_type']));
+        if (!in_array($suitType, ['wetsuit', 'drysuit', 'shortie', 'swimsuit', 'other'])) {
+            $errors[] = "Suit type '{$diveLog['suit_type']}' must be one of: wetsuit, drysuit, shortie, swimsuit, other - it will be set to 'other'";
+            $diveLog['suit_type'] = 'other'; // Auto-correct to 'other'
+        } else {
+            $diveLog['suit_type'] = $suitType; // Normalize case
+        }
     }
     
     // Validate water_type if provided
-    if (!empty($diveLog['water_type']) && 
-        !in_array(strtolower($diveLog['water_type']), ['salt', 'fresh', 'brackish'])) {
-        $errors[] = "Water type must be one of: salt, fresh, brackish";
+    if (!empty($diveLog['water_type'])) {
+        $waterType = strtolower(trim($diveLog['water_type']));
+        if (!in_array($waterType, ['salt', 'fresh', 'brackish'])) {
+            $errors[] = "Water type '{$diveLog['water_type']}' must be one of: salt, fresh, brackish - it will be left empty";
+            $diveLog['water_type'] = ''; // Auto-correct to empty
+        } else {
+            $diveLog['water_type'] = $waterType; // Normalize case
+        }
     }
     
     return [$errors, $diveLog];
@@ -159,44 +189,69 @@ function validateDiveLog($diveLog) {
 
 // Function to insert dive log into database
 function insertDiveLog($conn, $diveLog) {
-    $stmt = $conn->prepare("INSERT INTO divelogs (
+    // Debug: Log the suit_type and water_type values
+    $suit_debug = isset($diveLog['suit_type']) ? $diveLog['suit_type'] : 'NULL';
+    $water_debug = isset($diveLog['water_type']) ? $diveLog['water_type'] : 'NULL';
+    error_log("DEBUG: suit_type='$suit_debug', water_type='$water_debug'");
+    
+    // Force suit_type to be only one of the allowed values
+    if (!empty($diveLog['suit_type'])) {
+        $suitType = strtolower(trim($diveLog['suit_type']));
+        if (in_array($suitType, ['wetsuit', 'drysuit', 'shortie', 'swimsuit', 'other'])) {
+            $diveLog['suit_type'] = $suitType;
+        } else {
+            error_log("DEBUG: Invalid suit_type='{$diveLog['suit_type']}', forcing to 'other'");
+            $diveLog['suit_type'] = 'other';
+        }
+    }
+
+    // Force water_type to be only one of the allowed values
+    if (!empty($diveLog['water_type'])) {
+        $waterType = strtolower(trim($diveLog['water_type']));
+        if (in_array($waterType, ['salt', 'fresh', 'brackish'])) {
+            $diveLog['water_type'] = $waterType;
+        } else {
+            error_log("DEBUG: Invalid water_type='{$diveLog['water_type']}', forcing to NULL");
+            $diveLog['water_type'] = null;
+        }
+    }
+    
+    // Always use direct SQL instead of prepared statement to avoid issues with ENUM fields
+    $sql = "INSERT INTO divelogs (
         location, latitude, longitude, date, dive_time, description, 
         depth, duration, temperature, air_temperature, visibility, 
         buddy, dive_site_type, activity_type, rating, comments, dive_site,
         air_consumption_start, air_consumption_end, weight, suit_type, water_type
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    ) VALUES (
+        '" . $conn->real_escape_string($diveLog['location']) . "',
+        " . floatval($diveLog['latitude']) . ",
+        " . floatval($diveLog['longitude']) . ",
+        '" . $conn->real_escape_string($diveLog['date']) . "',
+        " . (!empty($diveLog['dive_time']) ? "'" . $conn->real_escape_string($diveLog['dive_time']) . "'" : "NULL") . ",
+        " . (!empty($diveLog['description']) ? "'" . $conn->real_escape_string($diveLog['description']) . "'" : "NULL") . ",
+        " . ($diveLog['depth'] !== null ? floatval($diveLog['depth']) : "NULL") . ",
+        " . ($diveLog['duration'] !== null ? intval($diveLog['duration']) : "NULL") . ",
+        " . ($diveLog['temperature'] !== null ? floatval($diveLog['temperature']) : "NULL") . ",
+        " . ($diveLog['air_temperature'] !== null ? floatval($diveLog['air_temperature']) : "NULL") . ",
+        " . ($diveLog['visibility'] !== null ? intval($diveLog['visibility']) : "NULL") . ",
+        " . (!empty($diveLog['buddy']) ? "'" . $conn->real_escape_string($diveLog['buddy']) . "'" : "NULL") . ",
+        " . (!empty($diveLog['dive_site_type']) ? "'" . $conn->real_escape_string($diveLog['dive_site_type']) . "'" : "NULL") . ",
+        'diving',
+        " . ($diveLog['rating'] !== null ? intval($diveLog['rating']) : "NULL") . ",
+        " . (!empty($diveLog['comments']) ? "'" . $conn->real_escape_string($diveLog['comments']) . "'" : "NULL") . ",
+        " . (!empty($diveLog['dive_site']) ? "'" . $conn->real_escape_string($diveLog['dive_site']) . "'" : "NULL") . ",
+        " . ($diveLog['air_consumption_start'] !== null ? intval($diveLog['air_consumption_start']) : "NULL") . ",
+        " . ($diveLog['air_consumption_end'] !== null ? intval($diveLog['air_consumption_end']) : "NULL") . ",
+        " . ($diveLog['weight'] !== null ? floatval($diveLog['weight']) : "NULL") . ",
+        " . (!empty($diveLog['suit_type']) ? "'" . $conn->real_escape_string($diveLog['suit_type']) . "'" : "NULL") . ",
+        " . (!empty($diveLog['water_type']) ? "'" . $conn->real_escape_string($diveLog['water_type']) . "'" : "NULL") . "
+    )";
     
-    $stmt->bind_param(
-        "sddsssddddisssissidsss", 
-        $diveLog['location'], 
-        $diveLog['latitude'], 
-        $diveLog['longitude'], 
-        $diveLog['date'], 
-        $diveLog['dive_time'], 
-        $diveLog['description'], 
-        $diveLog['depth'], 
-        $diveLog['duration'], 
-        $diveLog['temperature'], 
-        $diveLog['air_temperature'], 
-        $diveLog['visibility'], 
-        $diveLog['buddy'], 
-        $diveLog['dive_site_type'], 
-        $diveLog['activity_type'], 
-        $diveLog['rating'], 
-        $diveLog['comments'],
-        $diveLog['dive_site'],
-        $diveLog['air_consumption_start'],
-        $diveLog['air_consumption_end'],
-        $diveLog['weight'],
-        $diveLog['suit_type'],
-        $diveLog['water_type']
-    );
+    error_log("DEBUG: SQL: " . $sql);
     
-    $success = $stmt->execute();
-    $insertId = $success ? $stmt->insert_id : 0;
-    $error = $success ? '' : $stmt->error;
-    
-    $stmt->close();
+    $success = $conn->query($sql);
+    $insertId = $success ? $conn->insert_id : 0;
+    $error = $success ? '' : $conn->error;
     
     return [
         'success' => $success,

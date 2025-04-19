@@ -46,6 +46,12 @@ Done with Vibe Coding.
 
 ## Recent Changes
 
+- **Enhanced CSV Import Reliability**:
+  - Fixed "Data truncated" errors for ENUM fields by switching to direct SQL queries
+  - Improved handling of suit_type and water_type entries with proper validation
+  - Added fallback mechanisms for invalid field values to prevent import failures
+  - Enhanced error logging for better troubleshooting
+  - Implemented robust handling of European number formats (comma as decimal separator)
 - **Enhanced Data Privacy**:
   - Added .gitignore rules to prevent database backups from being uploaded
   - Configured separate .gitignore in backups directory for SQL files
