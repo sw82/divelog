@@ -46,13 +46,19 @@ Done with Vibe Coding.
 - [x] check the agenda of the map since there is no snorkeling anymore
 - [x] sort dive list entry and create sorting for each column
 - [x] for the divelist also add a "remove dive" and all functions accordingly
-- [] design: the stats need to have the same width as the map
-- [] design: check the dive pop ups and make sure it is nice and clean, also aligned and well use of icons as you do in the divelog
-- [] stats: about depth relatad to length and bar consumption
+- [x] design: the stats need to have the same width as the map
+- [x] design: check the dive pop ups and make sure it is nice and clean, also aligned and well use of icons as you do in the divelog
+- [x] stats: about depth relatad to length and bar consumption
 
 
 ## Recent Changes
 
+- **Enhanced User Interface Aesthetics**:
+  - Redesigned dive popups with consistent styling, improved alignment, and better icon usage
+  - Updated statistics cards to match map width and provide a cohesive visual experience
+  - Added visual indicators for technical dive details (air consumption, weight, suit type, water type)
+  - Implemented responsive layout that adapts to different screen sizes
+  - Improved color coding and visual hierarchy for better scan-ability
 - **CSV Import Fixes and Enhancements**:
   - Fixed "Choose File" button functionality to properly open the file selection dialog
   - Added PHP 8 compatibility fixes for handling null values in string functions
