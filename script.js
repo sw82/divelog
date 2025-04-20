@@ -581,4 +581,138 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
+
+    // Function to render dive statistics
+    function renderDiveStats(dives) {
+        // Get stats container
+        const statsContainer = document.getElementById('dive-stats');
+        if (!statsContainer) return;
+        
+        // Clear existing content
+        statsContainer.innerHTML = '';
+        
+        // Calculate statistics
+        const totalDives = dives.length;
+        
+        // Find max depth
+        let maxDepth = 0;
+        dives.forEach(dive => {
+            const depth = parseFloat(dive.max_depth || dive.depth || 0);
+            if (depth > maxDepth) maxDepth = depth;
+        });
+        
+        // Calculate average duration
+        let totalDuration = 0;
+        let durationsCount = 0;
+        dives.forEach(dive => {
+            const duration = parseInt(dive.dive_duration || dive.duration || 0);
+            if (duration > 0) {
+                totalDuration += duration;
+                durationsCount++;
+            }
+        });
+        const avgDuration = durationsCount > 0 ? Math.round(totalDuration / durationsCount) : 0;
+        
+        // Count unique locations
+        const locations = new Set();
+        dives.forEach(dive => {
+            if (dive.location) locations.add(dive.location);
+        });
+        const locationCount = locations.size;
+        
+        // Calculate total dive time
+        const totalDiveTime = totalDuration;
+        const totalDiveHours = Math.floor(totalDiveTime / 60);
+        const totalDiveMinutes = totalDiveTime % 60;
+        
+        // Find the latest dive
+        let latestDive = null;
+        if (dives.length > 0) {
+            latestDive = dives.reduce((latest, dive) => {
+                const diveDate = new Date(dive.date || dive.dive_date);
+                const latestDate = latest ? new Date(latest.date || latest.dive_date) : new Date(0);
+                return diveDate > latestDate ? dive : latest;
+            });
+        }
+        
+        // Create stat cards
+        const stats = [
+            {
+                title: 'Total Dives',
+                value: totalDives,
+                subtext: `${locationCount} unique locations`,
+                icon: 'fa-diving-scuba',
+                color: '#4363d8'
+            },
+            {
+                title: 'Max Depth',
+                value: `${maxDepth}m`,
+                subtext: 'deepest dive',
+                icon: 'fa-water',
+                color: '#3cb44b'
+            },
+            {
+                title: 'Average Duration',
+                value: `${avgDuration} min`,
+                subtext: 'per dive',
+                icon: 'fa-clock',
+                color: '#ffe119'
+            },
+            {
+                title: 'Total Dive Time',
+                value: `${totalDiveHours}h ${totalDiveMinutes}m`,
+                subtext: 'underwater',
+                icon: 'fa-hourglass-half',
+                color: '#f58231'
+            }
+        ];
+        
+        // If we have a latest dive, add it
+        if (latestDive) {
+            const diveDate = new Date(latestDive.date || latestDive.dive_date);
+            const formattedDate = diveDate.toLocaleDateString('en-US', { 
+                month: 'short', 
+                day: 'numeric',
+                year: 'numeric'
+            });
+            
+            stats.push({
+                title: 'Latest Dive',
+                value: formattedDate,
+                subtext: latestDive.location,
+                icon: 'fa-calendar-check',
+                color: '#911eb4'
+            });
+        }
+        
+        // Create HTML for stats
+        stats.forEach(stat => {
+            const cardCol = document.createElement('div');
+            cardCol.className = 'col-md-6 col-lg stat-col mb-3';
+            
+            cardCol.innerHTML = `
+                <div class="stat-card" style="border-top: 3px solid ${stat.color}">
+                    <div class="stat-icon">
+                        <i class="fas ${stat.icon}" style="color: ${stat.color}"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3 class="stat-title">${stat.title}</h3>
+                        <div class="stat-value">${stat.value}</div>
+                        <div class="stat-subtext">${stat.subtext}</div>
+                    </div>
+                </div>
+            `;
+            
+            statsContainer.appendChild(cardCol);
+        });
+    }
+
+    // Call renderDiveStats when dives data is loaded
+    const origFunc = window.displayMarkers;
+    if (origFunc) {
+        window.displayMarkers = function(dives, selectedYear) {
+            origFunc(dives, selectedYear);
+            renderDiveStats(dives);
+        };
+    }
 });

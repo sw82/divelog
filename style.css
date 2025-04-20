@@ -88,13 +88,28 @@ h1 {
     color: white;
 }
 
+/* Map container and related elements */
+.map-container {
+    height: calc(100vh - 60px);
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    position: relative;
+}
+
 #map {
-    width: 80%;
-    max-width: 1000px;
-    height: 600px;
-    margin-bottom: 20px;
+    height: 100%;
+    width: 100%;
     border-radius: 8px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    z-index: 1;
+}
+
+/* Make stats container match map width */
+.dive-stats-container {
+    width: 100%;
+    max-width: 1200px;
+    margin: 20px auto;
 }
 
 /* Menu Styles */
@@ -188,230 +203,290 @@ h1 {
     }
 }
 
-/* Map popup styles */
-.dive-popup-container {
-    max-height: 500px;
-    overflow-y: auto;
-    padding-right: 5px;
+/* Dive popup styling */
+.dive-popup {
+    padding: 0;
+    font-family: 'Roboto', sans-serif;
 }
 
-.dive-popup h3 {
-    margin-top: 0;
-    margin-bottom: 8px;
-    color: #0277bd;
-    border-bottom: 1px solid #e0e0e0;
-    padding-bottom: 8px;
-    font-size: 16px;
+.dive-popup-container .leaflet-popup-content-wrapper {
+    border-radius: 12px;
+    box-shadow: 0 3px 14px rgba(0,0,0,0.2);
 }
 
-.dive-popup p {
-    margin: 5px 0;
-}
-
-.dive-details {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
-    margin: 10px 0;
-    background-color: #f5f5f5;
-    padding: 8px;
-    border-radius: 4px;
-}
-
-.dive-details p {
+.dive-popup-container .leaflet-popup-content {
     margin: 0;
+    width: 300px !important;
+    max-width: 100%;
 }
 
-.dive-description {
-    border-top: 1px solid #eee;
-    padding-top: 10px;
-    margin-top: 10px !important;
-    margin-bottom: 10px !important;
-}
-
-.dive-comments {
-    background-color: #f5f5f5;
-    padding: 8px;
-    border-radius: 4px;
-    margin-top: 10px;
-    font-size: 0.9em;
-}
-
-.dive-comments p {
-    margin: 5px 0 0 0;
-    white-space: pre-line;
-}
-
-.popup-images {
-    display: flex;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    gap: 10px;
-    margin: 15px 0;
-    padding-bottom: 10px;
-}
-
-.popup-image {
-    flex: 0 0 auto;
-    width: 120px;
+.dive-header {
+    background-color: #3498db;
+    color: white;
+    padding: 15px;
+    border-radius: 8px 8px 0 0;
     position: relative;
 }
 
-.popup-image img {
-    width: 100%;
-    height: 90px;
-    object-fit: cover;
-    border-radius: 4px;
-    border: 1px solid #ddd;
+.dive-header h3 {
+    margin: 0 0 5px 0;
+    font-size: 18px;
+    font-weight: 600;
 }
 
-.image-caption {
-    font-size: 10px;
-    color: #666;
-    display: block;
+.dive-date {
+    font-size: 14px;
+    opacity: 0.9;
+}
+
+.dive-rating {
+    margin: 5px 0;
+    color: #f1c40f;
+}
+
+.dive-details-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #eee;
+}
+
+.detail-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     text-align: center;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    padding: 3px 0;
 }
 
-.more-images {
-    color: #2196F3;
-    text-align: center;
+.detail-item i {
+    font-size: 18px;
+    margin-bottom: 5px;
+    color: #3498db;
+}
+
+.detail-label {
     font-size: 12px;
-    margin: 5px 0 0 0;
+    color: #777;
+    margin-bottom: 2px;
 }
 
-.popup-footer {
-    border-top: 1px solid #eee;
-    padding-top: 10px;
-    margin-top: 10px;
-    text-align: right;
+.detail-value {
+    font-weight: 600;
+    font-size: 14px;
 }
 
-.popup-edit-link {
-    display: inline-block;
-    background-color: #4CAF50;
-    color: white;
-    text-decoration: none;
-    padding: 5px 12px;
-    border-radius: 4px;
-    font-size: 12px;
+.dive-description, 
+.dive-comments,
+.dive-additional-info,
+.fish-sightings {
+    padding: 15px;
+    border-bottom: 1px solid #eee;
 }
 
-.popup-edit-link:hover {
-    background-color: #45a049;
-}
-
-/* Fish sightings styles inside popups */
-.fish-sightings-container {
-    margin-top: 15px;
-    border-top: 1px solid #eee;
-    padding-top: 15px;
-}
-
-.fish-sightings-title {
-    font-weight: bold;
+.dive-description h4,
+.dive-comments h4,
+.fish-sightings h4 {
+    margin-top: 0;
     margin-bottom: 10px;
-    color: #0277bd;
+    font-size: 16px;
+    color: #2c3e50;
 }
 
-.fish-list {
+.dive-additional-info {
     display: flex;
     flex-wrap: wrap;
+    gap: 15px;
+}
+
+.info-item {
+    font-size: 14px;
+}
+
+.info-label {
+    font-weight: 600;
+    color: #555;
+}
+
+.fish-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
     gap: 10px;
-    margin-bottom: 10px;
+    margin-top: 10px;
 }
 
 .fish-item {
-    display: flex;
-    align-items: center;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    padding: 5px;
-    background-color: #f9f9f9;
-    width: calc(50% - 5px);
-    transition: background-color 0.2s;
-}
-
-.fish-item:hover {
-    background-color: #e3f2fd;
-}
-
-.fish-image {
-    width: 40px;
-    height: 40px;
-    object-fit: cover;
-    border-radius: 3px;
-    margin-right: 8px;
-    flex-shrink: 0;
-    border: 1px solid #e0e0e0;
-}
-
-.fish-image-placeholder {
-    width: 40px;
-    height: 40px;
-    background-color: #e0e0e0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 3px;
-    margin-right: 8px;
-    font-size: 10px;
+    position: relative;
     text-align: center;
-    color: #757575;
 }
 
-.fish-info {
-    flex-grow: 1;
-    overflow: hidden;
+.fish-img {
+    width: 60px;
+    height: 60px;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 2px solid #eee;
 }
 
 .fish-name {
-    font-weight: bold;
-    white-space: nowrap;
+    font-size: 12px;
+    margin-top: 5px;
     overflow: hidden;
     text-overflow: ellipsis;
-    font-size: 12px;
-    color: #333;
-}
-
-.fish-quantity {
-    font-size: 11px;
-    color: #666;
+    white-space: nowrap;
 }
 
 .more-fish {
-    display: block;
-    margin-top: 10px;
-    margin-bottom: 5px;
-    font-size: 12px;
-    color: #0277bd;
-    text-decoration: none;
     text-align: center;
-    padding: 4px;
-    background-color: #e3f2fd;
+    margin-top: 10px;
+    font-size: 14px;
+}
+
+.dive-footer {
+    padding: 15px;
+    text-align: center;
+}
+
+.edit-dive-link {
+    display: inline-block;
+    padding: 8px 16px;
+    background-color: #3498db;
+    color: white;
     border-radius: 4px;
+    text-decoration: none;
+    font-size: 14px;
     transition: background-color 0.2s;
 }
 
-.more-fish:hover {
-    background-color: #bbdefb;
+.edit-dive-link:hover {
+    background-color: #2980b9;
     text-decoration: none;
+    color: white;
 }
 
-/* Customize Leaflet Popup */
-.leaflet-popup-content-wrapper {
+.dive-images {
+    padding: 15px;
+    display: flex;
+    gap: 8px;
+    border-bottom: 1px solid #eee;
+    overflow-x: auto;
+}
+
+.dive-img {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
     border-radius: 6px;
-    padding: 0;
-    max-width: 350px;
+    border: 2px solid #eee;
 }
 
-.leaflet-popup-content {
-    margin: 12px;
-    width: auto !important;
-    max-width: 350px;
+.more-images {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 80px;
+    height: 80px;
+    background-color: rgba(0,0,0,0.1);
+    border-radius: 6px;
+    color: #555;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+/* Fish tooltips */
+.fish-tooltip-trigger {
+    position: relative;
+}
+
+.fish-tooltip {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: white;
+    border-radius: 6px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    padding: 8px;
+    z-index: 10;
+    width: 150px;
+    display: none;
+}
+
+.fish-tooltip:after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -8px;
+    border-width: 8px;
+    border-style: solid;
+    border-color: white transparent transparent transparent;
+}
+
+.fish-tooltip-trigger:hover .fish-tooltip {
+    display: block;
+}
+
+.fish-scientific-name {
+    font-style: italic;
+    font-size: 12px;
+    margin-bottom: 5px;
+}
+
+.fish-quantity, .fish-notes {
+    font-size: 12px;
+    margin-top: 5px;
+}
+
+/* Cluster styling */
+.custom-cluster-icon {
+    background: none;
+}
+
+.cluster-icon {
+    width: 36px;
+    height: 36px;
+    line-height: 36px;
+    text-align: center;
+    border-radius: 50%;
+    color: white;
+    font-weight: bold;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.3);
+}
+
+.cluster-popup {
+    padding: 15px;
+    min-width: 200px;
+}
+
+.cluster-popup h3 {
+    margin-top: 0;
+    font-size: 16px;
+    color: #2c3e50;
+}
+
+.locations-list {
+    padding-left: 15px;
+    margin-bottom: 10px;
+}
+
+.locations-list li {
+    margin-bottom: 5px;
+}
+
+.zoom-to-location {
+    margin-left: 5px;
+    font-size: 12px;
+    color: #3498db;
+}
+
+.cluster-note {
+    font-size: 12px;
+    color: #777;
+    font-style: italic;
+    text-align: center;
+    margin-top: 10px;
 }
 
 /* Styles for populate_db.php */
@@ -876,28 +951,6 @@ table th {
 }
 
 /* Marker Cluster Styles */
-.custom-cluster-icon {
-    background: none !important;
-    border: none !important;
-}
-
-.cluster-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    background-color: #4363d8;
-    color: white;
-    text-align: center;
-    line-height: 36px;
-    font-weight: bold;
-    font-size: 14px;
-    border: 2px solid white;
-    box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
 .mixed-cluster .cluster-icon {
     background-image: linear-gradient(45deg, #4363d8 50%, #2ca02c 50%);
 }
@@ -1315,4 +1368,97 @@ table th {
     .fish-tooltip {
         width: 180px;
     }
+}
+
+/* Stats Cards */
+.dive-stats-container {
+    margin-top: 30px;
+}
+
+.stat-col {
+    padding: 0 10px;
+}
+
+.stat-card {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    height: 100%;
+}
+
+.stat-icon {
+    font-size: 30px;
+    margin-right: 20px;
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background-color: rgba(0, 0, 0, 0.03);
+}
+
+.stat-content {
+    flex: 1;
+}
+
+.stat-title {
+    font-size: 14px;
+    color: #666;
+    margin: 0 0 5px 0;
+    font-weight: 600;
+}
+
+.stat-value {
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 5px;
+}
+
+.stat-subtext {
+    font-size: 12px;
+    color: #999;
+}
+
+.dive-technical-details {
+    padding: 10px 15px;
+    background-color: #f5f9fc;
+    border-bottom: 1px solid #eee;
+}
+
+.tech-detail-item {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 10px;
+    align-items: center;
+    text-align: center;
+}
+
+.tech-detail-item i {
+    font-size: 16px;
+    margin-bottom: 5px;
+    color: #3498db;
+}
+
+.tech-detail-label {
+    font-size: 12px;
+    color: #777;
+    margin-bottom: 2px;
+}
+
+.tech-detail-value {
+    font-weight: 600;
+    font-size: 14px;
+}
+
+/* Utility classes for spacing */
+.mr-1 {
+    margin-right: 0.25rem;
+}
+
+.mr-2 {
+    margin-right: 0.5rem;
 } 

@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search'])) {
 
 // Build the SQL query
 $query = "SELECT id, location, dive_site, latitude, longitude, date, DATE_FORMAT(date, '%Y') AS year,
-          depth, duration, rating, temperature, air_temperature, visibility, activity_type,
+          depth, duration, rating, temperature, air_temperature, visibility,
           dive_site_type, description, comments, buddy
           FROM divelogs";
 
@@ -69,7 +69,7 @@ if (!empty($searchTerm)) {
 
 // Get total count first (for pagination)
 $countQuery = str_replace("SELECT id, location, dive_site, latitude, longitude, date, DATE_FORMAT(date, '%Y') AS year,
-          depth, duration, rating, temperature, air_temperature, visibility, activity_type,
+          depth, duration, rating, temperature, air_temperature, visibility,
           dive_site_type, description, comments, buddy", "SELECT COUNT(*) as total", $query);
 
 // Add order by date for consistent display
@@ -123,7 +123,6 @@ if ($result && $result->num_rows > 0) {
             'dive_site_type' => $row['dive_site_type'],
             'rating' => $row['rating'],
             'comments' => $row['comments'],
-            'activity_type' => 'diving', // All activities are diving now
             'images' => array_map(function($img) {
                 return [
                     'id' => $img['id'],
@@ -175,7 +174,7 @@ foreach ($diveLogsData as $dive) {
 $locationCount = count($uniqueLocations);
 
 // Get dive logs for the map
-$diveLogsQuery = "SELECT id, location, date, rating, depth, duration, latitude, longitude, activity_type, 
+$diveLogsQuery = "SELECT id, location, date, rating, depth, duration, latitude, longitude, 
                         temperature, visibility, air_temperature, dive_site_type, buddy, description, comments,
                         YEAR(date) as year
                  FROM divelogs 
@@ -229,7 +228,7 @@ $maxDepth = 0;
 $locations = [];
 
 foreach ($diveLogs as $dive) {
-    // All activities are diving now
+    // Count all dives
     $totalDives++;
     
     // Track locations
@@ -248,9 +247,8 @@ foreach ($diveLogs as $dive) {
     }
 }
 
-$totalActivities = $totalDives; // All are dives now
 $locationCount = count($locations);
-$avgDuration = $totalActivities > 0 ? round($totalMinutes / $totalActivities) : 0;
+$avgDuration = $totalDives > 0 ? round($totalMinutes / $totalDives) : 0;
 
 // Find the latest dive
 $latestDive = null;
@@ -274,7 +272,7 @@ if ($cacheBust) {
     header("Pragma: no-cache");
     
     // Re-run the query to ensure fresh data
-    $diveLogsQuery = "SELECT id, location, date, rating, depth, duration, latitude, longitude, activity_type, 
+    $diveLogsQuery = "SELECT id, location, date, rating, depth, duration, latitude, longitude, 
                          temperature, visibility, air_temperature, dive_site_type, buddy, description, comments,
                          YEAR(date) as year
                   FROM divelogs 
@@ -329,7 +327,7 @@ if ($cacheBust) {
     $locations = [];
 
     foreach ($diveLogs as $dive) {
-        // All activities are diving now
+        // Count all dives
         $totalDives++;
         
         // Track locations
@@ -348,9 +346,8 @@ if ($cacheBust) {
         }
     }
 
-    $totalActivities = $totalDives; // All are dives now
     $locationCount = count($locations);
-    $avgDuration = $totalActivities > 0 ? round($totalMinutes / $totalActivities) : 0;
+    $avgDuration = $totalDives > 0 ? round($totalMinutes / $totalDives) : 0;
 
     // Find the latest dive
     $latestDive = null;
@@ -484,38 +481,26 @@ if ($cacheBust) {
 <body>
     <?php include 'navigation.php'; ?>
 
-    <div class="container mt-4 mb-5">
-        <div class="stats-container">
-            <div class="stat-box">
-                <div class="stat-label">Total Activities</div>
-                <div class="stat-value"><?php echo $totalActivities; ?></div>
-                <div class="stat-label"><?php echo $locationCount; ?> locations</div>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12">
+                <!-- Map container with consistent width -->
+                <div class="map-container">
+                    <div id="map"></div>
+                    
+                    <!-- Year filter control -->
+                    <div class="year-filter-container" id="year-filter"></div>
+                    
+                    <!-- Legend -->
+                    <div class="map-legend" id="map-legend"></div>
+                </div>
+                
+                <!-- Stats container with consistent width -->
+                <div class="dive-stats-container">
+                    <div class="row" id="dive-stats"></div>
+                </div>
             </div>
-            <div class="stat-box">
-                <div class="stat-label">Dive Activities</div>
-                <div class="stat-value"><?php echo $totalDives; ?></div>
-                <div class="stat-label"><?php echo round(($totalDives / max(1, $totalActivities)) * 100); ?>% of total</div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-label">Max Depth</div>
-                <div class="stat-value"><?php echo $maxDepth; ?>m</div>
-                <div class="stat-label">deepest dive</div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-label">Average Duration</div>
-                <div class="stat-value"><?php echo $avgDuration; ?></div>
-                <div class="stat-label">minutes per activity</div>
-            </div>
-            <?php if ($latestDive): ?>
-            <div class="stat-box" style="border-top-color: #FF9800;">
-                <div class="stat-label">Latest Dive</div>
-                <div class="stat-value" style="color: #FF9800;"><?php echo date('M d', strtotime($latestDive['date'])); ?></div>
-                <div class="stat-label"><?php echo htmlspecialchars($latestDive['location']); ?></div>
-            </div>
-            <?php endif; ?>
         </div>
-        
-        <div id="map"></div>
     </div>
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

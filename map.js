@@ -77,7 +77,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Create popup HTML content for a dive
     function createDivePopup(dive) {
         // Format the date
-        let date = new Date(dive.dive_date);
+        let date = new Date(dive.dive_date || dive.date);
         let formattedDate = 'Unknown Date';
         
         // Check if date is valid before formatting
@@ -102,6 +102,11 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
         
+        // Add time if available
+        if (dive.dive_time) {
+            formattedDate += ` at ${dive.dive_time}`;
+        }
+        
         // Create the star rating
         let ratingHtml = '';
         const rating = parseInt(dive.rating) || 0;
@@ -117,9 +122,9 @@ document.addEventListener('DOMContentLoaded', function() {
         let content = `
             <div class="dive-popup">
                 <div class="dive-header">
-                    <h3>${dive.dive_site || 'Unnamed Dive'}</h3>
+                    <h3>${dive.dive_site || dive.location || 'Unnamed Dive'}</h3>
                     <div class="dive-rating">${ratingHtml}</div>
-                    <div class="dive-date">${formattedDate}</div>
+                    <div class="dive-date"><i class="far fa-calendar-alt mr-1"></i> ${formattedDate}</div>
                 </div>`;
         
         // Images section
@@ -140,6 +145,98 @@ document.addEventListener('DOMContentLoaded', function() {
             content += `</div>`;
         }
         
+        // Technical dive details grid - add suit type, water type, air consumption, weight
+        content += `
+            <div class="dive-details-grid">
+                <div class="detail-item">
+                    <i class="fas fa-water"></i>
+                    <span class="detail-label">Depth</span>
+                    <span class="detail-value">${dive.max_depth || dive.depth || '-'} m</span>
+                </div>
+                <div class="detail-item">
+                    <i class="fas fa-clock"></i>
+                    <span class="detail-label">Duration</span>
+                    <span class="detail-value">${dive.dive_duration || dive.duration || '-'} min</span>
+                </div>
+                <div class="detail-item">
+                    <i class="fas fa-temperature-low"></i>
+                    <span class="detail-label">Water Temp</span>
+                    <span class="detail-value">${dive.water_temp || dive.temperature || '-'} °C</span>
+                </div>
+                <div class="detail-item">
+                    <i class="fas fa-tint"></i>
+                    <span class="detail-label">Visibility</span>
+                    <span class="detail-value">${dive.visibility || '-'} m</span>
+                </div>
+                <div class="detail-item">
+                    <i class="fas fa-sun"></i>
+                    <span class="detail-label">Air Temp</span>
+                    <span class="detail-value">${dive.air_temp || dive.air_temperature || '-'} °C</span>
+                </div>
+                <div class="detail-item">
+                    <i class="fas fa-weight-hanging"></i>
+                    <span class="detail-label">Weight</span>
+                    <span class="detail-value">${dive.weight || '-'} kg</span>
+                </div>
+            </div>`;
+            
+        // Technical dive details - second row for air consumption and suit/water type
+        if (dive.air_consumption_start || dive.air_consumption_end || dive.suit_type || dive.water_type) {
+            content += `
+                <div class="dive-technical-details">
+                    <div class="row">`;
+            
+            // Air consumption
+            if (dive.air_consumption_start || dive.air_consumption_end) {
+                content += `
+                    <div class="col-6">
+                        <div class="tech-detail-item">
+                            <i class="fas fa-compress-alt"></i>
+                            <span class="tech-detail-label">Air Consumption</span>
+                            <span class="tech-detail-value">
+                                ${dive.air_consumption_start || '-'} → ${dive.air_consumption_end || '-'} bar
+                            </span>
+                        </div>
+                    </div>`;
+            }
+            
+            // Suit type
+            if (dive.suit_type) {
+                let suitIcon = 'fa-tshirt';
+                if (dive.suit_type === 'drysuit') suitIcon = 'fa-user-astronaut';
+                else if (dive.suit_type === 'wetsuit') suitIcon = 'fa-user';
+                
+                content += `
+                    <div class="col-6">
+                        <div class="tech-detail-item">
+                            <i class="fas ${suitIcon}"></i>
+                            <span class="tech-detail-label">Suit Type</span>
+                            <span class="tech-detail-value">
+                                ${dive.suit_type.charAt(0).toUpperCase() + dive.suit_type.slice(1)}
+                            </span>
+                        </div>
+                    </div>`;
+            }
+            
+            // Water type
+            if (dive.water_type) {
+                content += `
+                    <div class="col-6">
+                        <div class="tech-detail-item">
+                            <i class="fas fa-water"></i>
+                            <span class="tech-detail-label">Water Type</span>
+                            <span class="tech-detail-value">
+                                ${dive.water_type.charAt(0).toUpperCase() + dive.water_type.slice(1)}
+                            </span>
+                        </div>
+                    </div>`;
+            }
+            
+            content += `
+                    </div>
+                </div>`;
+        }
+        
         // Description section
         if (dive.description) {
             let description = dive.description;
@@ -154,53 +251,23 @@ document.addEventListener('DOMContentLoaded', function() {
             
             content += `
                 <div class="dive-description">
-                    <h4>Description</h4>
+                    <h4><i class="fas fa-info-circle mr-2"></i>Description</h4>
                     <p class="short-desc">${shortDesc}</p>
                     <p class="full-desc" style="display: none;">${description}</p>
                     ${readMoreLink}
                 </div>`;
         }
         
-        // Dive details grid
-        content += `
-            <div class="dive-details-grid">
-                <div class="detail-item">
-                    <i class="fas fa-water"></i>
-                    <span class="detail-label">Depth</span>
-                    <span class="detail-value">${dive.max_depth || '-'} m</span>
-                </div>
-                <div class="detail-item">
-                    <i class="fas fa-clock"></i>
-                    <span class="detail-label">Duration</span>
-                    <span class="detail-value">${dive.dive_duration || '-'} min</span>
-                </div>
-                <div class="detail-item">
-                    <i class="fas fa-temperature-low"></i>
-                    <span class="detail-label">Water Temp</span>
-                    <span class="detail-value">${dive.water_temp || '-'} °C</span>
-                </div>
-                <div class="detail-item">
-                    <i class="fas fa-eye"></i>
-                    <span class="detail-label">Visibility</span>
-                    <span class="detail-value">${dive.visibility || '-'} m</span>
-                </div>
-                <div class="detail-item">
-                    <i class="fas fa-sun"></i>
-                    <span class="detail-label">Air Temp</span>
-                    <span class="detail-value">${dive.air_temp || '-'} °C</span>
-                </div>
-            </div>`;
-        
         // Additional information
         if (dive.site_type || dive.buddy) {
             content += `<div class="dive-additional-info">`;
             
             if (dive.site_type) {
-                content += `<div class="info-item"><span class="info-label">Site Type:</span> ${dive.site_type}</div>`;
+                content += `<div class="info-item"><i class="fas fa-map-marker-alt mr-1"></i><span class="info-label">Site Type:</span> ${dive.site_type}</div>`;
             }
             
             if (dive.buddy) {
-                content += `<div class="info-item"><span class="info-label">Buddy:</span> ${dive.buddy}</div>`;
+                content += `<div class="info-item"><i class="fas fa-user-friends mr-1"></i><span class="info-label">Buddy:</span> ${dive.buddy}</div>`;
             }
             
             content += `</div>`;
@@ -210,7 +277,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (dive.comments) {
             content += `
                 <div class="dive-comments">
-                    <h4>Comments</h4>
+                    <h4><i class="fas fa-comment-alt mr-2"></i>Comments</h4>
                     <p>${dive.comments}</p>
                 </div>`;
         }
@@ -219,7 +286,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (dive.fish_sightings && dive.fish_sightings.length > 0) {
             content += `
                 <div class="fish-sightings">
-                    <h4>Fish Sightings</h4>
+                    <h4><i class="fas fa-fish mr-2"></i>Fish Sightings (${dive.fish_sightings.length})</h4>
                     <div class="fish-grid">`;
             
             // Display up to 6 fish
@@ -245,7 +312,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // If there are more than 6 fish, add a link
             if (dive.fish_sightings.length > 6) {
-                content += `<div class="more-fish"><a href="divelog.php?id=${dive.id}" class="view-all-fish">View all ${dive.fish_sightings.length} fish sightings</a></div>`;
+                content += `<div class="more-fish"><a href="edit_dive.php?id=${dive.id}" class="view-all-fish">View all ${dive.fish_sightings.length} fish sightings</a></div>`;
             }
             
             content += `</div>`;
@@ -254,7 +321,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Footer with edit link
         content += `
             <div class="dive-footer">
-                <a href="edit_dive.php?id=${dive.id}" class="edit-dive-link">Edit this dive</a>
+                <a href="edit_dive.php?id=${dive.id}" class="edit-dive-link"><i class="fas fa-edit mr-1"></i>Edit this dive</a>
             </div>
         </div>`;
         
