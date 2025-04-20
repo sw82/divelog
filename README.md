@@ -59,6 +59,7 @@ Done with Vibe Coding.
   - Added visual indicators for technical dive details (air consumption, weight, suit type, water type)
   - Implemented responsive layout that adapts to different screen sizes
   - Improved color coding and visual hierarchy for better scan-ability
+  - Integrated dive statistics directly on the map page to serve as a comprehensive dashboard
 - **CSV Import Fixes and Enhancements**:
   - Fixed "Choose File" button functionality to properly open the file selection dialog
   - Added PHP 8 compatibility fixes for handling null values in string functions
@@ -107,6 +108,13 @@ This project has undergone a major restructuring:
   - Advanced marker clustering for better visualization of dive sites
   - Intelligent grouping of nearby dive locations
   - Interactive cluster popups showing location summaries
+  - Comprehensive statistics dashboard showing dive metrics:
+    - Total dives count and unique locations
+    - Maximum depth achieved
+    - Average dive duration
+    - Total underwater time
+    - Latest dive details
+  - Year filtering for focused analysis
 - **Dive Log Management**: 
   - Add, edit, and delete dive entries with detailed information
   - Record comprehensive dive metrics:
