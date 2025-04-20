@@ -53,6 +53,11 @@ Done with Vibe Coding.
 
 ## Recent Changes
 
+- **CSV Import Fixes and Enhancements**:
+  - Fixed "Choose File" button functionality to properly open the file selection dialog
+  - Added PHP 8 compatibility fixes for handling null values in string functions
+  - Resolved deprecation warnings related to trim() function
+  - Improved error handling in CSV processing
 - **Enhanced CSV Import Performance and Reliability**:
   - Added timeout prevention with increased execution time limit (5 minutes)
   - Implemented geocoding optimization with location caching

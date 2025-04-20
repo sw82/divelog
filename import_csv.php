@@ -94,7 +94,7 @@ function parseCSVRow($row) {
     
     // Normalize suit_type to match the allowed enum values
     if (isset($row[22]) && $row[22] !== '') {
-        $suitType = strtolower(trim($row[22]));
+        $suitType = strtolower($row[22] !== null ? trim($row[22]) : '');
         if (in_array($suitType, ['wetsuit', 'drysuit', 'shortie', 'swimsuit', 'other'])) {
             $diveLog['suit_type'] = $suitType;
         } else {
@@ -104,7 +104,7 @@ function parseCSVRow($row) {
     
     // Normalize water_type to match the allowed enum values
     if (isset($row[23]) && $row[23] !== '') {
-        $waterType = strtolower(trim($row[23]));
+        $waterType = strtolower($row[23] !== null ? trim($row[23]) : '');
         if (in_array($waterType, ['salt', 'fresh', 'brackish'])) {
             $diveLog['water_type'] = $waterType;
         } else {
@@ -335,7 +335,7 @@ function validateDiveLog($diveLog, $useGeocoding = false) {
     
     // Validate suit_type if provided
     if (!is_null($diveLog['suit_type']) && !empty($diveLog['suit_type'])) {
-        $suitType = strtolower(trim($diveLog['suit_type']));
+        $suitType = strtolower($diveLog['suit_type'] !== null ? trim($diveLog['suit_type']) : '');
         if (!in_array($suitType, ['wetsuit', 'drysuit', 'shortie', 'swimsuit', 'other'])) {
             $errors[] = "Suit type '{$diveLog['suit_type']}' must be one of: wetsuit, drysuit, shortie, swimsuit, other - it will be set to 'other'";
             $diveLog['suit_type'] = 'other'; // Auto-correct to 'other'
@@ -346,7 +346,7 @@ function validateDiveLog($diveLog, $useGeocoding = false) {
     
     // Validate water_type if provided
     if (!is_null($diveLog['water_type']) && !empty($diveLog['water_type'])) {
-        $waterType = strtolower(trim($diveLog['water_type']));
+        $waterType = strtolower($diveLog['water_type'] !== null ? trim($diveLog['water_type']) : '');
         if (!in_array($waterType, ['salt', 'fresh', 'brackish'])) {
             $errors[] = "Water type '{$diveLog['water_type']}' must be one of: salt, fresh, brackish - it will be left empty";
             $diveLog['water_type'] = null; // Auto-correct to NULL
@@ -372,7 +372,7 @@ function insertDiveLog($conn, $diveLog) {
     
     // Force suit_type to be only one of the allowed values
     if (!is_null($diveLog['suit_type']) && !empty($diveLog['suit_type'])) {
-        $suitType = strtolower(trim($diveLog['suit_type']));
+        $suitType = strtolower($diveLog['suit_type'] !== null ? trim($diveLog['suit_type']) : '');
         if (in_array($suitType, ['wetsuit', 'drysuit', 'shortie', 'swimsuit', 'other'])) {
             $diveLog['suit_type'] = $suitType;
         } else {
@@ -383,7 +383,7 @@ function insertDiveLog($conn, $diveLog) {
 
     // Force water_type to be only one of the allowed values
     if (!is_null($diveLog['water_type']) && !empty($diveLog['water_type'])) {
-        $waterType = strtolower(trim($diveLog['water_type']));
+        $waterType = strtolower($diveLog['water_type'] !== null ? trim($diveLog['water_type']) : '');
         if (in_array($waterType, ['salt', 'fresh', 'brackish'])) {
             $diveLog['water_type'] = $waterType;
         } else {
@@ -580,7 +580,7 @@ function processCSVFile($filePath, $conn, $useGeocoding = false) {
                 // Only count non-empty rows
                 $isEmpty = true;
                 foreach ($row as $cell) {
-                    if (trim($cell) !== '') {
+                    if ($cell !== null && trim($cell) !== '') {
                         $isEmpty = false;
                         break;
                     }
@@ -609,7 +609,7 @@ function processCSVFile($filePath, $conn, $useGeocoding = false) {
             // Better empty row check - see if all cells are empty
             $isEmpty = true;
             foreach ($row as $cell) {
-                if (trim($cell) !== '') {
+                if ($cell !== null && trim($cell) !== '') {
                     $isEmpty = false;
                     break;
                 }
@@ -1042,6 +1042,12 @@ if (PHP_SAPI === 'cli') {
         const dropArea = document.getElementById('drop-area');
         const fileInput = document.getElementById('file-input');
         const fileName = document.getElementById('file-name');
+        const chooseFileBtn = document.querySelector('.file-input-wrapper button');
+        
+        // Make the "Choose File" button trigger the file input dialog
+        chooseFileBtn.addEventListener('click', function() {
+            fileInput.click();
+        });
         
         // Prevent default drag behaviors
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
@@ -1187,5 +1193,9 @@ if (PHP_SAPI === 'cli') {
             })
             .catch(error => {
                 console.error('Error checking progress:', error);
+            });
+        }
+    });
+    </script>
 </body>
 </html> 
