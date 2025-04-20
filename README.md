@@ -46,15 +46,21 @@ Done with Vibe Coding.
 - [x] check the agenda of the map since there is no snorkeling anymore
 - [x] sort dive list entry and create sorting for each column
 - [x] for the divelist also add a "remove dive" and all functions accordingly
+- [] design: the stats need to have the same width as the map
+- [] design: check the dive pop ups and make sure it is nice and clean, also aligned and well use of icons as you do in the divelog
+- [] stats: about depth relatad to length and bar consumption
 
 
 ## Recent Changes
 
-- **Enhanced Map Refresh System**:
-  - Added robust cache-busting for deleted dive entries
-  - Implemented forced data reload after deletion operations
-  - Added browser cache controls to prevent stale data display
-  - Fixed issue where deleted dives would still appear on map
+- **Enhanced CSV Import Performance and Reliability**:
+  - Added timeout prevention with increased execution time limit (5 minutes)
+  - Implemented geocoding optimization with location caching
+  - Added batch processing with progress tracking for large imports
+  - Added real-time progress indicator for better user feedback
+  - Added internet connectivity check before geocoding attempts
+  - Improved error handling for missing coordinates
+  - Added option to enable/disable automatic geocoding
 - **Fish Management Integration**: Removed fish list from navigation menu while maintaining full fish sighting functionality within dive details.
 - **Enhanced CSV Import Reliability**: Fixed errors related to ENUM fields and improved handling of suit_type and water_type entries.
 - **Enhanced Data Privacy**: Added .gitignore rules to prevent sensitive data from being uploaded.
@@ -260,6 +266,14 @@ The OCR feature supports:
    - Ensure JavaScript is enabled in browser
    - Check browser console for errors
    - Verify internet connection for map tiles
+
+4. **CSV Import Performance Issues**
+   - Check PHP execution time limit in php.ini (should be at least 300 seconds)
+   - Ensure internet connection is available for geocoding functionality
+   - Consider disabling automatic geocoding for large imports
+   - Provide complete coordinates in CSV files when possible
+   - For large imports, process files in smaller batches
+   - Check browser console for AJAX errors during progress tracking
 
 ### Backup and Maintenance
 

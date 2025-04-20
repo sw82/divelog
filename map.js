@@ -27,6 +27,17 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Create a marker for a dive
     function createDiveMarker(dive) {
+        console.log(`Creating marker for dive ${dive.id} at ${dive.latitude}, ${dive.longitude}`);
+        
+        // Ensure latitude and longitude are valid numbers
+        const lat = parseFloat(dive.latitude);
+        const lng = parseFloat(dive.longitude);
+        
+        if (isNaN(lat) || isNaN(lng)) {
+            console.error(`Invalid coordinates for dive ${dive.id}: lat=${dive.latitude}, lng=${dive.longitude}`);
+            return null;
+        }
+        
         // Determine marker color based on year
         const color = getColorForYear(dive.year);
         
@@ -40,22 +51,27 @@ document.addEventListener('DOMContentLoaded', function() {
             fillOpacity: 0.8
         };
         
-        // Create marker at the dive's coordinates
-        const marker = L.circleMarker([dive.latitude, dive.longitude], markerOptions);
-        
-        // Create popup content for the marker
-        const popupContent = createDivePopup(dive);
-        
-        // Bind popup to marker
-        marker.bindPopup(popupContent, {
-            maxWidth: 350,
-            className: 'dive-popup-container'
-        });
-        
-        // Store the dive data in the marker for later access
-        marker.diveData = dive;
-        
-        return marker;
+        try {
+            // Create marker at the dive's coordinates
+            const marker = L.circleMarker([lat, lng], markerOptions);
+            
+            // Create popup content for the marker
+            const popupContent = createDivePopup(dive);
+            
+            // Bind popup to marker
+            marker.bindPopup(popupContent, {
+                maxWidth: 350,
+                className: 'dive-popup-container'
+            });
+            
+            // Store the dive data in the marker for later access
+            marker.diveData = dive;
+            
+            return marker;
+        } catch (error) {
+            console.error(`Error creating marker for dive ${dive.id}:`, error);
+            return null;
+        }
     }
     
     // Create popup HTML content for a dive
@@ -173,11 +189,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     <span class="detail-label">Air Temp</span>
                     <span class="detail-value">${dive.air_temp || '-'} °C</span>
                 </div>
-                <div class="detail-item">
-                    <i class="fas fa-tag"></i>
-                    <span class="detail-label">Activity</span>
-                    <span class="detail-value">${dive.activity_type || 'Dive'}</span>
-                </div>
             </div>`;
         
         // Additional information
@@ -272,21 +283,6 @@ document.addEventListener('DOMContentLoaded', function() {
     function createClusterIcon(cluster) {
         const childCount = cluster.getChildCount();
         
-        // Count dive types within this cluster
-        let divingCount = 0;
-        let snorkelingCount = 0;
-        
-        cluster.getAllChildMarkers().forEach(marker => {
-            if (marker.diveData && marker.diveData.activity_type === 'snorkeling') {
-                snorkelingCount++;
-            } else {
-                divingCount++;
-            }
-        });
-        
-        // Determine if it's a mixed cluster
-        const hasMixed = divingCount > 0 && snorkelingCount > 0;
-        
         // Get years from the cluster for color calculation
         const years = cluster.getAllChildMarkers()
             .map(marker => marker.diveData && marker.diveData.year)
@@ -307,17 +303,9 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
         `;
         
-        // Add border style based on activity types
-        let className = 'custom-cluster-icon';
-        if (hasMixed) {
-            className += ' mixed-cluster';
-        } else if (snorkelingCount > 0) {
-            className += ' snorkel-cluster';
-        }
-        
         return L.divIcon({
             html: html,
-            className: className,
+            className: 'custom-cluster-icon',
             iconSize: L.point(36, 36),
             iconAnchor: L.point(18, 18)
         });
@@ -401,6 +389,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         console.log(`Displaying ${filteredDives.length} dive markers for year: ${selectedYear}`);
+        console.log('First 5 dives:', filteredDives.slice(0, 5));
         
         // Handle the case where there are no dives to show
         if (filteredDives.length === 0) {
@@ -448,21 +437,35 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         // Create and add markers for each dive
+        let createdMarkers = 0;
+        let invalidCoordinates = 0;
+        let errorMarkers = 0;
+        
         filteredDives.forEach(dive => {
-            // Check that required coordinates exist and are valid numbers
-            if (!dive.latitude || !dive.longitude || 
-                isNaN(parseFloat(dive.latitude)) || isNaN(parseFloat(dive.longitude))) {
-                console.warn(`Missing or invalid coordinates for dive ${dive.id} - ${dive.location}`);
-                return;
-            }
-            
             try {
+                // All dives should have valid coordinates now, but double-check anyway
+                if (!dive.latitude || !dive.longitude || 
+                    isNaN(parseFloat(dive.latitude)) || isNaN(parseFloat(dive.longitude)) ||
+                    Math.abs(parseFloat(dive.latitude)) < 0.0001 || Math.abs(parseFloat(dive.longitude)) < 0.0001) {
+                    console.warn(`Dive ${dive.id} has invalid coordinates: lat=${dive.latitude}, lng=${dive.longitude}`);
+                    invalidCoordinates++;
+                    return;
+                }
+                
                 const marker = createDiveMarker(dive);
-                window.markerLayer.addLayer(marker);
+                if (marker) {
+                    window.markerLayer.addLayer(marker);
+                    createdMarkers++;
+                } else {
+                    errorMarkers++;
+                }
             } catch (err) {
                 console.error(`Error creating marker for dive ${dive.id}:`, err);
+                errorMarkers++;
             }
         });
+        
+        console.log(`Markers summary: created=${createdMarkers}, invalid=${invalidCoordinates}, errors=${errorMarkers}`);
         
         // Add popup for clusters
         window.markerLayer.on('clusterclick', function(e) {
@@ -496,6 +499,10 @@ document.addEventListener('DOMContentLoaded', function() {
         if (countElement) {
             countElement.textContent = filteredDives.length;
         }
+        
+        // Count how many layers exist
+        const layerCount = window.markerLayer ? window.markerLayer.getLayers().length : 0;
+        console.log(`Total layers added to map: ${layerCount}`);
         
         // Fit map to markers if we have any
         if (window.markerLayer && window.markerLayer.getLayers().length > 0) {
@@ -545,18 +552,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>`;
             });
             
-            // Add activity type legend
-            div.innerHTML += `
-                <h4 style="margin-top: 15px;">Activity Types</h4>
-                <div class="legend-item">
-                    <span class="color-box" style="background-color: #4363d8; border: 2px solid white;"></span>
-                    <span>Diving</span>
-                </div>
-                <div class="legend-item">
-                    <span class="color-box" style="background-color: #4363d8; border: 3px dashed white;"></span>
-                    <span>Snorkeling</span>
-                </div>`;
-            
             return div;
         };
         
@@ -569,7 +564,22 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!response.ok) {
                 throw new Error(`Server responded with status ${response.status}: ${response.statusText}`);
             }
-            return response.json();
+            console.log('Response received, attempting to parse JSON');
+            return response.text().then(text => {
+                try {
+                    // Log the raw text if it's small enough
+                    if (text.length < 1000) {
+                        console.log('Raw response:', text);
+                    } else {
+                        console.log('Raw response (first 1000 chars):', text.substring(0, 1000));
+                    }
+                    return JSON.parse(text);
+                } catch (e) {
+                    console.error('JSON parse error:', e);
+                    console.error('Raw response causing error:', text);
+                    throw new Error('Failed to parse server response as JSON');
+                }
+            });
         })
         .then(data => {
             // Check if we received an error in the JSON
@@ -581,6 +591,7 @@ document.addEventListener('DOMContentLoaded', function() {
             window.diveData = data;
             
             console.log(`Received ${data.length} dive logs`);
+            console.log('Sample data item:', data.length > 0 ? data[0] : 'No data');
             
             // Extract unique years for filtering
             const uniqueYears = [...new Set(data.map(dive => dive.year))].sort().reverse();
