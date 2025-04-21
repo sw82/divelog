@@ -1,6 +1,9 @@
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Map.js loaded');
     
+    // Track active filter state
+    window.activeYearFilter = 'all';
+    
     // Add sidebar to the DOM first
     document.body.insertAdjacentHTML('beforeend', `
         <div id="dive-details-sidebar" class="dive-details-sidebar">
@@ -38,6 +41,25 @@ document.addEventListener('DOMContentLoaded', function() {
             z-index: 1000;
             max-width: 80%;
         }
+        
+        /* Filter inactive styles */
+        .year-legend.filter-inactive .legend-item input[type="radio"] {
+            opacity: 0.5;
+        }
+        
+        .year-legend.filter-inactive .legend-item label {
+            color: #999;
+        }
+        
+        .filter-inactive-notice {
+            background-color: #fff3cd;
+            color: #856404;
+            padding: 5px 8px;
+            border-radius: 4px;
+            margin-top: 8px;
+            font-size: 11px;
+            text-align: center;
+        }
     `;
     document.head.appendChild(styleElement);
     
@@ -54,6 +76,39 @@ document.addEventListener('DOMContentLoaded', function() {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         maxZoom: 19
     }).addTo(map);
+    
+    // Add zoom handling to detect manual zooming
+    map.on('zoomend', function() {
+        const currentZoom = map.getZoom();
+        
+        // Consider zoom level 6+ as "zoomed in" for this purpose
+        if (currentZoom > 5) {
+            showFilterInactiveNotice();
+        } else if (currentZoom <= 3) {
+            // If zoomed way out, ensure "All Years" is selected
+            const yearLegend = document.querySelector('.year-legend');
+            if (yearLegend) {
+                yearLegend.classList.remove('filter-inactive');
+                
+                // Remove the notice if present
+                const notice = yearLegend.querySelector('.filter-inactive-notice');
+                if (notice) {
+                    notice.remove();
+                }
+                
+                // Check if we need to actually reset the filter
+                if (window.activeYearFilter !== 'all') {
+                    window.activeYearFilter = 'all';
+                    const allYearsRadio = document.getElementById('year-all');
+                    if (allYearsRadio) {
+                        allYearsRadio.checked = true;
+                    }
+                    // Refresh markers to show all years
+                    displayMarkers(diveLogsData, 'all');
+                }
+            }
+        }
+    });
     
     // Define colors for different years
     const yearColors = [
@@ -369,6 +424,29 @@ document.addEventListener('DOMContentLoaded', function() {
         return content;
     }
     
+    // Helper function to show filter inactive notice
+    function showFilterInactiveNotice() {
+        const yearLegend = document.querySelector('.year-legend');
+        if (yearLegend && window.activeYearFilter !== 'all') {
+            // Add a class to show filter has been automatically deselected
+            yearLegend.classList.add('filter-inactive');
+            
+            // Add a visual indicator if not already present
+            if (!yearLegend.querySelector('.filter-inactive-notice')) {
+                const notice = document.createElement('div');
+                notice.className = 'filter-inactive-notice';
+                notice.innerHTML = '<i class="fas fa-info-circle"></i> Filter inactive while zoomed in';
+                yearLegend.appendChild(notice);
+            }
+            
+            // Reset the All Years radio button to match the visual state
+            const allYearsRadio = document.getElementById('year-all');
+            if (allYearsRadio) {
+                allYearsRadio.checked = true;
+            }
+        }
+    }
+    
     // Function to show dive details in the sidebar
     function showDiveDetails(dive) {
         console.log('Showing dive details for:', dive.id, dive.location);
@@ -390,16 +468,11 @@ document.addEventListener('DOMContentLoaded', function() {
         // Show sidebar by adding active class
         sidebar.classList.add('active');
         
-        // Unselect year filter (select "All Years" radio button) when viewing individual dive details
-        const allYearsRadio = document.getElementById('year-all');
-        if (allYearsRadio) {
-            // Only unselect if a year filter was active (not "All Years")
-            const activeYearFilter = document.querySelector('input[name="year-filter"]:checked');
-            if (activeYearFilter && activeYearFilter.value !== 'all') {
-                // Set "All Years" as checked but don't trigger the change event
-                // We don't want to refresh all markers when clicking on a dive
-                allYearsRadio.checked = true;
-            }
+        // Reset year filter to "All Years" when viewing individual dive details
+        if (window.activeYearFilter !== 'all') {
+            // Update global state but don't refresh the map
+            window.activeYearFilter = 'all';
+            showFilterInactiveNotice();
         }
         
         // Log visibility status to help debug
@@ -638,6 +711,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 .setContent(createClusterPopup(cluster))
                 .openOn(map);
             
+            // When clicking a cluster, add visual indication that filter might be inactive
+            showFilterInactiveNotice();
+            
             // Add event listeners for "Zoom" links after popup is opened
             setTimeout(() => {
                 document.querySelectorAll('.zoom-to-location').forEach(link => {
@@ -646,6 +722,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         const lat = parseFloat(this.getAttribute('data-lat'));
                         const lng = parseFloat(this.getAttribute('data-lng'));
                         if (!isNaN(lat) && !isNaN(lng)) {
+                            // When zooming to a specific location, show filter inactive notice
+                            showFilterInactiveNotice();
+                            
                             map.setView([lat, lng], 14);
                             map.closePopup();
                         }
@@ -795,6 +874,21 @@ document.addEventListener('DOMContentLoaded', function() {
             document.addEventListener('change', function(e) {
                 if (e.target && e.target.name === 'year-filter') {
                     const selectedYear = e.target.value;
+                    
+                    // Update the global filter state
+                    window.activeYearFilter = selectedYear;
+                    
+                    // Remove the filter-inactive class if present
+                    const yearLegend = document.querySelector('.year-legend');
+                    if (yearLegend) {
+                        yearLegend.classList.remove('filter-inactive');
+                        
+                        // Remove the notice if present
+                        const notice = yearLegend.querySelector('.filter-inactive-notice');
+                        if (notice) {
+                            notice.remove();
+                        }
+                    }
                     
                     // If "All Years" is selected, zoom out to world view
                     if (selectedYear === 'all') {
