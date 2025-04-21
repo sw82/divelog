@@ -1,8 +1,102 @@
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Map.js loaded');
     
-    // Initialize layout - add sidebar container next to map
-    initializeMapLayout();
+    // Add sidebar to the DOM first
+    document.body.insertAdjacentHTML('beforeend', `
+        <div id="dive-details-sidebar" class="dive-details-sidebar">
+            <div class="sidebar-header">
+                <h3>Dive Details</h3>
+                <button class="close-sidebar"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="sidebar-content">
+                <div class="empty-state">
+                    <div class="empty-icon"><i class="fas fa-map-marker-alt"></i></div>
+                    <p>Click on a dive marker to view details</p>
+                </div>
+            </div>
+        </div>
+    `);
+    
+    // Add styles directly
+    const styleElement = document.createElement('style');
+    styleElement.textContent = `
+        .dive-details-sidebar {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 350px;
+            height: 100vh;
+            background-color: white;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+            overflow-y: auto;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+        }
+        
+        .dive-details-sidebar.active {
+            transform: translateX(0);
+        }
+        
+        .sidebar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #eee;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        .sidebar-header h3 {
+            margin: 0;
+            font-size: 1.2rem;
+        }
+        
+        .close-sidebar {
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            cursor: pointer;
+        }
+        
+        .sidebar-content {
+            padding: 15px;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 30px 20px;
+            color: #6c757d;
+        }
+        
+        .empty-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            color: #adb5bd;
+        }
+        
+        @media (max-width: 768px) {
+            .dive-details-sidebar {
+                width: 100%;
+                height: 50vh;
+                top: 50%;
+                transform: translateY(100%);
+            }
+            
+            .dive-details-sidebar.active {
+                transform: translateY(0);
+            }
+        }
+    `;
+    document.head.appendChild(styleElement);
+    
+    // Add event listener for sidebar close button
+    document.querySelector('.close-sidebar').addEventListener('click', function() {
+        document.getElementById('dive-details-sidebar').classList.remove('active');
+    });
     
     // Initialize the map
     const map = L.map('map').setView([20, 0], 2);
@@ -327,174 +421,16 @@ document.addEventListener('DOMContentLoaded', function() {
         return content;
     }
     
-    // Function to initialize the map layout with a sidebar
-    function initializeMapLayout() {
-        // Get the container that holds the map
-        const mapContainer = document.getElementById('map-container');
-        if (!mapContainer) {
-            console.error('Map container not found!');
+    // Function to show dive details in the sidebar
+    function showDiveDetails(dive) {
+        console.log('Showing dive details for:', dive.id, dive.location);
+        
+        const sidebar = document.getElementById('dive-details-sidebar');
+        if (!sidebar) {
+            console.error('Sidebar element not found!');
             return;
         }
         
-        // Create the sidebar container
-        const sidebarContainer = document.createElement('div');
-        sidebarContainer.id = 'dive-details-sidebar';
-        sidebarContainer.className = 'dive-details-sidebar';
-        sidebarContainer.innerHTML = `
-            <div class="sidebar-header">
-                <h3>Dive Details</h3>
-                <button class="close-sidebar"><i class="fas fa-times"></i></button>
-            </div>
-            <div class="sidebar-content">
-                <div class="empty-state">
-                    <div class="empty-icon"><i class="fas fa-map-marker-alt"></i></div>
-                    <p>Click on a dive marker to view details</p>
-                </div>
-            </div>
-        `;
-        
-        // Restructure the layout - create a container for both map and sidebar
-        const flexContainer = document.createElement('div');
-        flexContainer.className = 'map-sidebar-container';
-        
-        // Get the original map element
-        const mapElement = document.getElementById('map');
-        const mapParent = mapElement.parentNode;
-        
-        // Create a new map container with correct size
-        const newMapContainer = document.createElement('div');
-        newMapContainer.id = 'map';
-        newMapContainer.className = 'map-element';
-        
-        // Replace old map with flex container
-        mapParent.replaceChild(flexContainer, mapElement);
-        
-        // Add map and sidebar to the flex container
-        flexContainer.appendChild(newMapContainer);
-        flexContainer.appendChild(sidebarContainer);
-        
-        // Add styles to the head
-        const styleElement = document.createElement('style');
-        styleElement.textContent = `
-            .map-sidebar-container {
-                display: flex;
-                height: 75vh;
-                width: 100%;
-                position: relative;
-            }
-            
-            .map-element {
-                flex: 3;
-                height: 100%;
-                z-index: 1;
-            }
-            
-            .dive-details-sidebar {
-                flex: 1;
-                height: 100%;
-                overflow-y: auto;
-                background-color: white;
-                box-shadow: -2px 0 10px rgba(0,0,0,0.1);
-                padding: 0;
-                border-left: 1px solid #e0e0e0;
-                transition: transform 0.3s ease;
-                z-index: 2;
-                display: none;
-            }
-            
-            .dive-details-sidebar.active {
-                display: block;
-            }
-            
-            .sidebar-header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 10px 15px;
-                border-bottom: 1px solid #e0e0e0;
-                background-color: #f8f9fa;
-                position: sticky;
-                top: 0;
-                z-index: 10;
-            }
-            
-            .sidebar-header h3 {
-                margin: 0;
-                font-size: 1.2rem;
-            }
-            
-            .close-sidebar {
-                background: none;
-                border: none;
-                cursor: pointer;
-                font-size: 1.2rem;
-                color: #666;
-            }
-            
-            .sidebar-content {
-                padding: 15px;
-            }
-            
-            .empty-state {
-                text-align: center;
-                padding: 30px 20px;
-                color: #6c757d;
-            }
-            
-            .empty-icon {
-                font-size: 3rem;
-                margin-bottom: 15px;
-                color: #adb5bd;
-            }
-            
-            /* Responsive adjustments */
-            @media (max-width: 768px) {
-                .map-sidebar-container {
-                    flex-direction: column;
-                    height: auto;
-                }
-                
-                .map-element {
-                    height: 50vh;
-                    width: 100%;
-                }
-                
-                .dive-details-sidebar {
-                    width: 100%;
-                    height: auto;
-                    max-height: 50vh;
-                    border-left: none;
-                    border-top: 1px solid #e0e0e0;
-                }
-            }
-            
-            /* Adjust existing dive-popup styles for sidebar */
-            .dive-details-sidebar .dive-popup {
-                box-shadow: none;
-                padding: 0;
-                border-radius: 0;
-                max-width: none;
-            }
-            
-            .dive-details-sidebar .dive-header h3 {
-                font-size: 1.3rem;
-            }
-            
-            .dive-details-sidebar .dive-img {
-                height: 120px;
-            }
-        `;
-        document.head.appendChild(styleElement);
-        
-        // Add event listener for close button
-        document.querySelector('.close-sidebar').addEventListener('click', function() {
-            hideDiveDetails();
-        });
-    }
-    
-    // Function to show dive details in the sidebar
-    function showDiveDetails(dive) {
-        const sidebar = document.getElementById('dive-details-sidebar');
         const sidebarContent = sidebar.querySelector('.sidebar-content');
         
         // Update content with dive details
@@ -503,54 +439,38 @@ document.addEventListener('DOMContentLoaded', function() {
         // Show sidebar
         sidebar.classList.add('active');
         
-        // Add event listeners for toggleDescription and other interactive elements
-        setupSidebarInteractions();
-    }
-    
-    // Function to hide dive details sidebar
-    function hideDiveDetails() {
-        const sidebar = document.getElementById('dive-details-sidebar');
-        sidebar.classList.remove('active');
-    }
-    
-    // Set up event listeners for sidebar interactions
-    function setupSidebarInteractions() {
-        // Find any read more links and add event listeners
+        // Add event listeners for toggleDescription
         document.querySelectorAll('.read-more').forEach(link => {
             link.addEventListener('click', function(event) {
                 event.preventDefault();
-                toggleDescription(this, event);
+                const parent = this.parentNode;
+                const shortDesc = parent.querySelector('.short-desc');
+                const fullDesc = parent.querySelector('.full-desc');
+                
+                if (shortDesc.style.display !== 'none') {
+                    shortDesc.style.display = 'none';
+                    fullDesc.style.display = 'block';
+                    this.textContent = 'Read less';
+                } else {
+                    fullDesc.style.display = 'none';
+                    shortDesc.style.display = 'block';
+                    this.textContent = 'Read more';
+                }
             });
         });
         
-        // Add event listeners for fish tooltip triggers
+        // Add event listeners for fish tooltips
         document.querySelectorAll('.fish-tooltip-trigger').forEach(trigger => {
             trigger.addEventListener('mouseenter', function() {
-                this.querySelector('.fish-tooltip').style.display = 'block';
+                const tooltip = this.querySelector('.fish-tooltip');
+                if (tooltip) tooltip.style.display = 'block';
             });
             
             trigger.addEventListener('mouseleave', function() {
-                this.querySelector('.fish-tooltip').style.display = 'none';
+                const tooltip = this.querySelector('.fish-tooltip');
+                if (tooltip) tooltip.style.display = 'none';
             });
         });
-    }
-    
-    // Function to toggle between short and full description
-    function toggleDescription(link, event) {
-        event.preventDefault();
-        const parent = link.parentNode;
-        const shortDesc = parent.querySelector('.short-desc');
-        const fullDesc = parent.querySelector('.full-desc');
-        
-        if (shortDesc.style.display !== 'none') {
-            shortDesc.style.display = 'none';
-            fullDesc.style.display = 'block';
-            link.textContent = 'Read less';
-        } else {
-            fullDesc.style.display = 'none';
-            shortDesc.style.display = 'block';
-            link.textContent = 'Read more';
-        }
     }
     
     // Create a custom cluster icon with a nice appearance

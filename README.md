@@ -52,6 +52,12 @@ Done with Vibe Coding.
 
 ## Recent Changes
 
+- **Fixed SQL Error for Empty Numeric Fields**:
+  - Fixed "Incorrect integer value" error when submitting empty values for numeric fields like visibility
+  - Improved form handling to convert empty string inputs to NULL values in database
+  - Enhanced error handling for all numeric fields (visibility, water temperature, air temperature, etc.)
+  - Ensures robust form submissions even with incomplete dive data
+
 - **Enhanced Error Handling in Map Display**:
   - Added robust error handling for fetch requests in map.js
   - Implemented user-friendly error messages for various error types (network errors, server errors, JSON parsing issues)

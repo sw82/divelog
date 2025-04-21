@@ -67,6 +67,15 @@ if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
                     water_type = ?
                     WHERE id = ?");
                 
+                // Convert empty visibility to NULL
+                $visibility = $_POST['visibility'] === '' ? null : $_POST['visibility'];
+                // Convert other potentially empty numeric fields
+                $water_temp = $_POST['water_temp'] === '' ? null : $_POST['water_temp'];
+                $air_temp = $_POST['air_temp'] === '' ? null : $_POST['air_temp'];
+                $air_start = $_POST['air_start'] === '' ? null : $_POST['air_start'];
+                $air_end = $_POST['air_end'] === '' ? null : $_POST['air_end'];
+                $weight = $_POST['weight'] === '' ? null : $_POST['weight'];
+                
                 $stmt->bind_param("sddssddddssisiiddsssi", 
                     $_POST['location'],
                     $_POST['latitude'],
@@ -75,17 +84,17 @@ if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
                     $_POST['description'],
                     $_POST['max_depth'],
                     $_POST['dive_duration'],
-                    $_POST['water_temp'],
-                    $_POST['air_temp'],
-                    $_POST['visibility'],
+                    $water_temp,
+                    $air_temp,
+                    $visibility,
                     $_POST['dive_buddy'],
                     $_POST['site_type'],
                     $_POST['rating'],
                     $_POST['comments'],
                     $_POST['dive_site'],
-                    $_POST['air_start'],
-                    $_POST['air_end'],
-                    $_POST['weight'],
+                    $air_start,
+                    $air_end,
+                    $weight,
                     $_POST['suit_type'],
                     $_POST['water_type'],
                     $dive_id
