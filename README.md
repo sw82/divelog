@@ -48,9 +48,17 @@ Done with Vibe Coding.
 - [x] design: the stats need to have the same width as the map
 - [x] design: check the dive pop ups and make sure it is nice and clean, also aligned and well use of icons as you do in the divelog
 - [x] stats: about depth relatad to length and bar consumption
-- [] include the fish db into the export/backup. also all relations in the sql so that you could restore it easily
-- [] create a php script or so which creates all nesecassary files, folders etc and copies them from the git to the server. so I just upload this one php script and it will create everything and asks me to fill in database credentials, maybe a name or whatever is needed
-- [] Fatal error: Uncaught mysqli_sql_exception: Unknown column 'fish_id' in 'where clause' in /Users/basti_1/Library/Mobile Documents/com~apple~CloudDocs/Development/Repositories/divelog/fish_manager.php:111 Stack trace: #0 /Users/basti_1/Library/Mobile Documents/com~apple~CloudDocs/Development/Repositories/divelog/fish_manager.php(111): mysqli->query('SELECT fs.*, (S...') #1 {main} thrown in /Users/basti_1/Library/Mobile Documents/com~apple~CloudDocs/Development/Repositories/divelog/fish_manager.php on line 111
+- [x] include the fish db into the export/backup. also all relations in the sql so that you could restore it easily
+- [x] create a php script or so which creates all nesecassary files, folders etc and copies them from the git to the server. so I just upload this one php script and it will create everything and asks me to fill in database credentials, maybe a name or whatever is needed
+- [x] Fatal error: Uncaught mysqli_sql_exception: Unknown column 'fish_id' in 'where clause' in fish_manager.php:111 Stack trace:  on line 111
+
+
+- [x] install script: install script: "Database setup file not found. Please place your database_setup.sql file in the application's root directory." after succesfully enter credentials
+- [x] install script: in the end I get a "Not Found The requested URL was not found on this server."
+- [x] install script: make sure to copy the needed files from the github source
+- [ ] add a proper admin panel to manage all aspects of the application from a single interface
+- [ ] implement HTTPS support by default for better security
+- [ ] create user role system for multiple divers sharing the same installation
 
 ## Recent Changes
 
@@ -435,3 +443,10 @@ To address the remaining security concerns, the following improvements should be
 - Protection against SQL injection vulnerabilities
 - Improved operational safety with better confirmation mechanisms
 - Enhanced error handling and recovery procedures
+
+- **Added Country Information and Flags**:
+  - Enhanced dive popups with country information display
+  - Added Unicode flag emojis based on country names
+  - Implemented a robust country name to ISO code mapping system
+  - Styled country display with responsive design for all device sizes
+  - Added visual separation between country information and other dive details
