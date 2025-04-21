@@ -625,26 +625,88 @@ document.addEventListener('DOMContentLoaded', function() {
         return legend;
     }
     
+    // Function to show error messages on the map
+    function showMapError(message, retryable = true) {
+        console.error('Map Error:', message);
+        
+        // Create error control if it doesn't exist
+        let errorControl = document.querySelector('.map-error-control');
+        if (!errorControl) {
+            errorControl = L.control({ position: 'topright' });
+            
+            errorControl.onAdd = function() {
+                const div = L.DomUtil.create('div', 'map-error-control');
+                div.style.padding = '10px 15px';
+                div.style.backgroundColor = '#f8d7da';
+                div.style.color = '#721c24';
+                div.style.borderRadius = '4px';
+                div.style.margin = '10px';
+                div.style.maxWidth = '300px';
+                div.style.boxShadow = '0 0 10px rgba(0,0,0,0.2)';
+                return div;
+            };
+            
+            errorControl.addTo(map);
+            errorControl = document.querySelector('.map-error-control');
+        }
+        
+        // Update the error message
+        errorControl.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: start;">
+                <div>
+                    <strong>Error</strong>
+                    <div style="margin-top: 5px;">${message}</div>
+                    ${retryable ? '<button id="map-error-retry" style="padding: 3px 8px; background-color: #0277bd; color: white; border: none; border-radius: 4px; cursor: pointer; margin-top: 8px;">Retry</button>' : ''}
+                </div>
+                <button id="map-error-close" style="background: none; border: none; cursor: pointer; font-size: 16px; margin-left: 10px;">&times;</button>
+            </div>
+        `;
+        
+        // Add event listeners
+        document.getElementById('map-error-close').addEventListener('click', function() {
+            errorControl.style.display = 'none';
+        });
+        
+        if (retryable) {
+            document.getElementById('map-error-retry').addEventListener('click', function() {
+                errorControl.style.display = 'none';
+                window.location.reload();
+            });
+        }
+    }
+    
     // Fetch dive data and initialize map
     fetch('get_dive_data.php')
         .then(response => {
             if (!response.ok) {
-                throw new Error(`Server responded with status ${response.status}: ${response.statusText}`);
+                throw new Error(`Server error: ${response.status} ${response.statusText}`);
             }
             console.log('Response received, attempting to parse JSON');
             return response.text().then(text => {
                 try {
+                    // Check if response is empty
+                    if (!text || text.trim() === '') {
+                        throw new Error('Server returned empty response');
+                    }
+                    
+                    // Check if response starts with PHP error
+                    if (text.includes('Fatal error') || text.includes('Parse error') || text.includes('Warning:')) {
+                        console.error('PHP error detected in response');
+                        throw new Error('Server error: PHP error in response');
+                    }
+                    
                     // Log the raw text if it's small enough
                     if (text.length < 1000) {
                         console.log('Raw response:', text);
                     } else {
                         console.log('Raw response (first 1000 chars):', text.substring(0, 1000));
                     }
+                    
                     return JSON.parse(text);
                 } catch (e) {
                     console.error('JSON parse error:', e);
                     console.error('Raw response causing error:', text);
-                    throw new Error('Failed to parse server response as JSON');
+                    throw new Error(`Failed to parse server response: ${e.message}`);
                 }
             });
         })
@@ -654,6 +716,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 throw new Error(data.error);
             }
             
+            // Check if data is in the expected format
+            if (!Array.isArray(data)) {
+                // For single dive responses, the API might return {success: true, data: {}}
+                if (data.success && data.data) {
+                    data = [data.data];
+                } else {
+                    throw new Error('Server returned unexpected data format');
+                }
+            }
+            
             // Store dive data globally
             window.diveData = data;
             
@@ -661,7 +733,7 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('Sample data item:', data.length > 0 ? data[0] : 'No data');
             
             // Extract unique years for filtering
-            const uniqueYears = [...new Set(data.map(dive => dive.year))].sort().reverse();
+            const uniqueYears = [...new Set(data.map(dive => dive.year).filter(year => year))].sort().reverse();
             
             // Add the year legend with filter controls
             createYearLegend(uniqueYears).addTo(map);
@@ -702,47 +774,22 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(error => {
             console.error('Error fetching dive data:', error);
             
-            // Show a user-friendly error message
-            const errorDiv = L.DomUtil.create('div', 'map-error-message');
-            errorDiv.innerHTML = `
-                <h3>Error Loading Dive Data</h3>
-                <p>${error.message || 'Failed to load dive data. Please refresh the page or try again later.'}</p>
-                <button id="retryButton" style="padding: 6px 12px; background-color: #0277bd; color: white; border: none; border-radius: 4px; cursor: pointer; margin-top: 10px;">Retry</button>
-            `;
+            // Determine the user-friendly error message
+            let errorMessage;
             
-            errorDiv.style.padding = '15px';
-            errorDiv.style.backgroundColor = '#f8d7da';
-            errorDiv.style.color = '#721c24';
-            errorDiv.style.borderRadius = '4px';
-            errorDiv.style.margin = '20px auto';
-            errorDiv.style.textAlign = 'center';
-            errorDiv.style.maxWidth = '80%';
-            
-            // Clear any existing content in the map container
-            const mapElement = document.getElementById('map');
-            if (mapElement) {
-                // Center the error message in the map
-                errorDiv.style.position = 'absolute';
-                errorDiv.style.zIndex = '1000';
-                errorDiv.style.top = '50%';
-                errorDiv.style.left = '50%';
-                errorDiv.style.transform = 'translate(-50%, -50%)';
-                
-                mapElement.appendChild(errorDiv);
-                
-                // Add event listener to retry button
-                const retryButton = document.getElementById('retryButton');
-                if (retryButton) {
-                    retryButton.addEventListener('click', function() {
-                        // Remove the error message
-                        if (errorDiv.parentNode) {
-                            errorDiv.parentNode.removeChild(errorDiv);
-                        }
-                        
-                        // Reload the page to retry
-                        window.location.reload();
-                    });
-                }
+            if (error.name === 'TypeError' && error.message.includes('NetworkError')) {
+                errorMessage = 'Network error: Please check your internet connection.';
+            } else if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+                errorMessage = 'Unable to contact the server. Please try again later.';
+            } else if (error.message.includes('JSON')) {
+                errorMessage = 'Error processing server response. Please contact the administrator.';
+            } else if (error.message.includes('Server error')) {
+                errorMessage = error.message;
+            } else {
+                errorMessage = 'Failed to load dive data. Please refresh the page or try again later.';
             }
+            
+            // Show error on the map using our new function
+            showMapError(errorMessage);
         });
 });

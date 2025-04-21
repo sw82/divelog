@@ -4,7 +4,6 @@ divelog
 A maps thingy to keep track of my dives.
 Done with Vibe Coding.
 
-
 ## ToDo
 
 - [x] Initial Commit
@@ -53,13 +52,25 @@ Done with Vibe Coding.
 
 ## Recent Changes
 
+- **Enhanced Error Handling in Map Display**:
+  - Added robust error handling for fetch requests in map.js
+  - Implemented user-friendly error messages for various error types (network errors, server errors, JSON parsing issues)
+  - Created dismissable error notifications with retry functionality
+  - Added detailed logging for debugging server response issues
+  - Improved data validation for non-standard API responses
+
 - **Enhanced User Interface Aesthetics**:
   - Redesigned dive popups with consistent styling, improved alignment, and better icon usage
   - Updated statistics cards to match map width and provide a cohesive visual experience
   - Added visual indicators for technical dive details (air consumption, weight, suit type, water type)
   - Implemented responsive layout that adapts to different screen sizes
   - Improved color coding and visual hierarchy for better scan-ability
-  - Integrated dive statistics directly on the map page to serve as a comprehensive dashboard
+  - Integrated comprehensive dive statistics dashboard directly on the map page showing dive metrics:
+    - Total dives count and unique locations
+    - Maximum depth achieved
+    - Average dive duration
+    - Total underwater time
+    - Latest dive information
 - **CSV Import Fixes and Enhancements**:
   - Fixed "Choose File" button functionality to properly open the file selection dialog
   - Added PHP 8 compatibility fixes for handling null values in string functions

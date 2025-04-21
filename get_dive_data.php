@@ -1,4 +1,7 @@
 <?php
+// Start output buffering to prevent "headers already sent" issues
+ob_start();
+
 // Include database connection - make sure db.php doesn't have trailing whitespace or closing PHP tag
 include_once 'db.php';
 
@@ -16,11 +19,11 @@ try {
     
     // Query to get all dive logs with coordinates and more detailed information
     $query = "SELECT id, location, date as dive_date, rating, depth as max_depth, duration, 
-                     latitude, longitude, activity_type, temperature, visibility, 
+                     latitude, longitude, temperature, visibility, 
                      air_temperature, dive_site_type, buddy, description, comments,
-                     YEAR(date) as year, dive_site
+                     YEAR(date) as year, dive_site,
+                     air_consumption_start, air_consumption_end, weight, suit_type, water_type
               FROM divelogs
-              WHERE latitude IS NOT NULL AND longitude IS NOT NULL
               ORDER BY date DESC";
     
     // Convert to prepared statement
@@ -56,9 +59,8 @@ try {
             'rating' => $dive['rating'],
             'max_depth' => $dive['max_depth'],
             'duration' => $dive['duration'],
-            'latitude' => $dive['latitude'],
-            'longitude' => $dive['longitude'],
-            'activity_type' => $dive['activity_type'] ?: 'diving',
+            'latitude' => (!empty($dive['latitude'])) ? (float)$dive['latitude'] : null,  // Use null if not present
+            'longitude' => (!empty($dive['longitude'])) ? (float)$dive['longitude'] : null, // Use null if not present
             'temperature' => $dive['temperature'],
             'visibility' => $dive['visibility'],
             'air_temperature' => $dive['air_temperature'],
@@ -66,7 +68,12 @@ try {
             'buddy' => $dive['buddy'],
             'description' => $dive['description'],
             'comments' => $dive['comments'],
-            'dive_site' => $dive['dive_site'] ?? ''
+            'dive_site' => $dive['dive_site'] ?? '',
+            'air_consumption_start' => $dive['air_consumption_start'] ?? null,
+            'air_consumption_end' => $dive['air_consumption_end'] ?? null,
+            'weight' => $dive['weight'] ?? null,
+            'suit_type' => $dive['suit_type'] ?? null,
+            'water_type' => $dive['water_type'] ?? null
         ];
         
         // Get dive images
@@ -78,7 +85,13 @@ try {
         
         $images = [];
         while ($imageRow = $imagesResult->fetch_assoc()) {
-            $images[] = $imageRow['filename'];
+            $images[] = [
+                'id' => $imageRow['id'],
+                'filename' => $imageRow['filename'],
+                'caption' => $imageRow['caption'],
+                'upload_date' => $imageRow['upload_date'],
+                'image_path' => 'uploads/diveimages/' . $imageRow['filename']
+            ];
         }
         
         $formatted_dive['images'] = $images;
@@ -120,4 +133,7 @@ try {
     echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
     exit;
 }
+
+// Flush the output buffer and end buffering
+ob_end_flush();
 ?> 
