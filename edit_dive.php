@@ -67,7 +67,7 @@ if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
                     water_type = ?
                     WHERE id = ?");
                 
-                $stmt->bind_param("sddssddddississdsssi", 
+                $stmt->bind_param("sddssddddssisiiddsssi", 
                     $_POST['location'],
                     $_POST['latitude'],
                     $_POST['longitude'],
