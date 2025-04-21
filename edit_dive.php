@@ -46,6 +46,7 @@ if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
                 // Update the dive log entry
                 $stmt = $conn->prepare("UPDATE divelogs SET 
                     location = ?, 
+                    country = ?,
                     latitude = ?, 
                     longitude = ?, 
                     date = ?, 
@@ -76,8 +77,9 @@ if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
                 $air_end = $_POST['air_end'] === '' ? null : $_POST['air_end'];
                 $weight = $_POST['weight'] === '' ? null : $_POST['weight'];
                 
-                $stmt->bind_param("sddssddddssisiiddsssi", 
+                $stmt->bind_param("ssddssddddssisiiddsssi", 
                     $_POST['location'],
+                    $_POST['country'],
                     $_POST['latitude'],
                     $_POST['longitude'],
                     $_POST['dive_date'],
@@ -266,13 +268,19 @@ $fish_species = getAllFishSpecies();
                 </div>
                 
                 <div class="row">
-                    <div class="col-md-6">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="country">Country:</label>
+                            <input type="text" class="form-control" id="country" name="country" value="<?php echo htmlspecialchars($divelog['country'] ?? ''); ?>" placeholder="Country of dive location">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
                         <div class="form-group">
                             <label for="latitude">Latitude:</label>
                             <input type="text" class="form-control" id="latitude" name="latitude" value="<?php echo htmlspecialchars($divelog['latitude'] ?? ''); ?>">
                         </div>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <div class="form-group">
                             <label for="longitude">Longitude:</label>
                             <input type="text" class="form-control" id="longitude" name="longitude" value="<?php echo htmlspecialchars($divelog['longitude'] ?? ''); ?>">

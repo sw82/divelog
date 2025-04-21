@@ -64,6 +64,26 @@ document.addEventListener('DOMContentLoaded', function() {
             font-size: 11px;
             text-align: center;
         }
+        
+        /* Country display styling */
+        .dive-country {
+            display: flex;
+            align-items: center;
+            margin-top: 4px;
+            font-size: 0.9rem;
+            color: #666;
+        }
+        
+        .flag-emoji {
+            font-size: 1.2rem;
+            margin-right: 6px;
+        }
+        
+        .dive-popup .dive-header {
+            padding-bottom: 10px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
     `;
     document.head.appendChild(styleElement);
     
@@ -211,6 +231,71 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
         
+        // Get country code for flag (simplified mapping function)
+        function getCountryCode(countryName) {
+            if (!countryName) return null;
+            
+            // Map of country names to ISO 3166-1 alpha-2 codes for common diving destinations
+            const countryMap = {
+                'australia': 'au',
+                'bahamas': 'bs',
+                'belize': 'bz',
+                'costa rica': 'cr',
+                'cuba': 'cu',
+                'egypt': 'eg',
+                'fiji': 'fj',
+                'france': 'fr',
+                'germany': 'de',
+                'greece': 'gr',
+                'hawaii': 'us', // Not a country but common dive location
+                'honduras': 'hn',
+                'indonesia': 'id',
+                'italy': 'it',
+                'jamaica': 'jm',
+                'japan': 'jp',
+                'maldives': 'mv',
+                'malta': 'mt',
+                'mexico': 'mx',
+                'morocco': 'ma',
+                'netherlands': 'nl',
+                'new zealand': 'nz',
+                'norway': 'no',
+                'philippines': 'ph',
+                'portugal': 'pt',
+                'spain': 'es',
+                'sweden': 'se',
+                'thailand': 'th',
+                'uk': 'gb',
+                'united kingdom': 'gb',
+                'usa': 'us',
+                'united states': 'us',
+                'vietnam': 'vn'
+            };
+            
+            // Convert to lowercase for case-insensitive matching
+            const normalizedName = countryName.toLowerCase().trim();
+            return countryMap[normalizedName] || null;
+        }
+        
+        // Prepare country display with flag
+        let countryDisplay = '';
+        if (dive.country) {
+            const countryCode = getCountryCode(dive.country);
+            if (countryCode) {
+                // Use flag emoji if available (using Unicode regional indicator symbols)
+                const flagEmoji = countryCode
+                    .toUpperCase()
+                    .split('')
+                    .map(char => String.fromCodePoint(char.charCodeAt(0) + 127397))
+                    .join('');
+                    
+                countryDisplay = `<div class="dive-country"><span class="flag-emoji">${flagEmoji}</span> ${dive.country}</div>`;
+            } else {
+                // Fallback without flag
+                countryDisplay = `<div class="dive-country"><i class="fas fa-globe-americas mr-1"></i> ${dive.country}</div>`;
+            }
+        }
+        
         // Start building the content
         let content = `
             <div class="dive-popup">
@@ -218,6 +303,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <h3>${dive.dive_site || dive.location || 'Unnamed Dive'}</h3>
                     <div class="dive-rating">${ratingHtml}</div>
                     <div class="dive-date"><i class="far fa-calendar-alt mr-1"></i> ${formattedDate}</div>
+                    ${countryDisplay}
                 </div>`;
         
         // Images section
