@@ -128,6 +128,18 @@ Done with Vibe Coding.
 - **Clarified Field Purposes**: Distinction between "Description" and "Comments" fields.
 - **Added Technical Dive Details**: Included tracking for air consumption, weight, suit type, and water type.
 - **Improved CSV Import**: Enhanced detection of CSV delimiters and error handling.
+- **Added Country Information and Flags**:
+  - Enhanced dive popups with country information display
+  - Added Unicode flag emojis based on country names
+  - Implemented a robust country name to ISO code mapping system
+  - Styled country display with responsive design for all device sizes
+  - Added visual separation between country information and other dive details
+- **Enhanced Installer Script**:
+  - Fixed issues with script execution and duplicated content
+  - Added detection for existing installations to prevent accidental overwrites
+  - Implemented automatic backup of existing database before reinstallation
+  - Improved user interface with clear warnings and options for existing installations
+  - Added force flag option to bypass existing installation checks when needed
 
 ## Project Changes
 
@@ -444,10 +456,3 @@ To address the remaining security concerns, the following improvements should be
 - Protection against SQL injection vulnerabilities
 - Improved operational safety with better confirmation mechanisms
 - Enhanced error handling and recovery procedures
-
-- **Added Country Information and Flags**:
-  - Enhanced dive popups with country information display
-  - Added Unicode flag emojis based on country names
-  - Implemented a robust country name to ISO code mapping system
-  - Styled country display with responsive design for all device sizes
-  - Added visual separation between country information and other dive details
