@@ -48,9 +48,20 @@ Done with Vibe Coding.
 - [x] design: the stats need to have the same width as the map
 - [x] design: check the dive pop ups and make sure it is nice and clean, also aligned and well use of icons as you do in the divelog
 - [x] stats: about depth relatad to length and bar consumption
-
+- [] include the fish db into the export/backup. also all relations in the sql so that you could restore it easily
+- [] create a php script or so which creates all nesecassary files, folders etc and copies them from the git to the server. so I just upload this one php script and it will create everything and asks me to fill in database credentials, maybe a name or whatever is needed
+- [] Fatal error: Uncaught mysqli_sql_exception: Unknown column 'fish_id' in 'where clause' in /Users/basti_1/Library/Mobile Documents/com~apple~CloudDocs/Development/Repositories/divelog/fish_manager.php:111 Stack trace: #0 /Users/basti_1/Library/Mobile Documents/com~apple~CloudDocs/Development/Repositories/divelog/fish_manager.php(111): mysqli->query('SELECT fs.*, (S...') #1 {main} thrown in /Users/basti_1/Library/Mobile Documents/com~apple~CloudDocs/Development/Repositories/divelog/fish_manager.php on line 111
 
 ## Recent Changes
+
+- **New One-File Installer Script**:
+  - Added a single-file PHP installer that automates the setup process
+  - Guides users through system requirements verification
+  - Creates necessary directories with proper permissions
+  - Handles database configuration and initialization
+  - Populates sample data for immediate testing
+  - Self-deletes after successful installation for security
+  - Provides a user-friendly step-by-step interface with progress tracking
 
 - **Standardized CSV Format and Import/Export**:
   - Improved CSV file handling for consistent formatting
@@ -218,6 +229,40 @@ The OCR feature supports:
 - Batch processing of multiple logbook pages
 - Automatic data extraction with manual review
 - Saving processed data directly to the database
+
+## Easy Installation
+
+The Divelog application now includes a simple installer script that makes deployment on a new server quick and easy.
+
+### Using the Installer
+
+1. **Upload a Single File**: Only upload `install.php` to your server
+2. **Access the Installer**: Navigate to `install.php` in your web browser
+3. **Follow the Steps**: The installer will guide you through:
+   - System requirements check
+   - Directory creation with proper permissions
+   - Database configuration setup
+   - Database schema and sample data initialization
+   - Final configuration settings
+
+The installer will check your server's compatibility, create necessary directories, help you set up your database connection, and initialize the database with the required tables and sample data.
+
+### Security Features
+
+The installer includes security features:
+- Verification of server requirements before proceeding
+- Secure database creation
+- Proper file permission settings
+- Optional self-deletion after installation
+
+### Post-Installation
+
+After installation:
+1. The application will be fully configured and ready to use
+2. You can log in and start adding your dive logs
+3. Sample data will be available for you to test and explore features
+
+This one-file approach eliminates the need to manually copy files, create directories, set permissions, or run SQL scripts.
 
 ## Setup Guide
 
