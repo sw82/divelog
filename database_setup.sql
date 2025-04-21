@@ -78,14 +78,14 @@ CREATE TABLE IF NOT EXISTS `fish_species` (
 CREATE TABLE IF NOT EXISTS `fish_sightings` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `dive_id` int(11) NOT NULL,
-  `fish_id` int(11) NOT NULL,
+  `fish_species_id` int(11) NOT NULL,
   `notes` text DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `dive_id` (`dive_id`),
-  KEY `fish_id` (`fish_id`),
+  KEY `fish_species_id` (`fish_species_id`),
   CONSTRAINT `fish_sightings_ibfk_1` FOREIGN KEY (`dive_id`) REFERENCES `dive_logs` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fish_sightings_ibfk_2` FOREIGN KEY (`fish_id`) REFERENCES `fish_species` (`id`) ON DELETE CASCADE
+  CONSTRAINT `fish_sightings_ibfk_2` FOREIGN KEY (`fish_species_id`) REFERENCES `fish_species` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -93,13 +93,13 @@ CREATE TABLE IF NOT EXISTS `fish_sightings` (
 -- --------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `fish_images` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `fish_id` int(11) NOT NULL,
+  `fish_species_id` int(11) NOT NULL,
   `filename` varchar(255) NOT NULL,
   `original_filename` varchar(255) DEFAULT NULL,
   `uploaded_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
-  KEY `fish_id` (`fish_id`),
-  CONSTRAINT `fish_images_ibfk_1` FOREIGN KEY (`fish_id`) REFERENCES `fish_species` (`id`) ON DELETE CASCADE
+  KEY `fish_species_id` (`fish_species_id`),
+  CONSTRAINT `fish_images_ibfk_1` FOREIGN KEY (`fish_species_id`) REFERENCES `fish_species` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
