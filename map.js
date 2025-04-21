@@ -3,6 +3,10 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Track active filter state
     window.activeYearFilter = 'all';
+    // Flag to track if a year filter change was initiated by the user
+    window.userInitiatedFilterChange = false;
+    // Flag to prevent zoom handler from triggering during user filter changes
+    window.ignoreNextZoomEvent = false;
     
     // Add sidebar to the DOM first
     document.body.insertAdjacentHTML('beforeend', `
@@ -79,35 +83,28 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Add zoom handling to detect manual zooming
     map.on('zoomend', function() {
-        const currentZoom = map.getZoom();
+        // If we should ignore this zoom event (e.g., during a user-initiated filter change), skip processing
+        if (window.ignoreNextZoomEvent) {
+            window.ignoreNextZoomEvent = false;
+            return;
+        }
         
-        // Consider zoom level 6+ as "zoomed in" for this purpose
-        if (currentZoom > 5) {
-            showFilterInactiveNotice();
-        } else if (currentZoom <= 3) {
-            // If zoomed way out, ensure "All Years" is selected
-            const yearLegend = document.querySelector('.year-legend');
-            if (yearLegend) {
-                yearLegend.classList.remove('filter-inactive');
-                
-                // Remove the notice if present
-                const notice = yearLegend.querySelector('.filter-inactive-notice');
-                if (notice) {
-                    notice.remove();
-                }
-                
-                // Check if we need to actually reset the filter
-                if (window.activeYearFilter !== 'all') {
-                    window.activeYearFilter = 'all';
-                    const allYearsRadio = document.getElementById('year-all');
-                    if (allYearsRadio) {
-                        allYearsRadio.checked = true;
-                    }
-                    // Refresh markers to show all years
-                    displayMarkers(diveLogsData, 'all');
-                }
+        const currentZoom = map.getZoom();
+        console.log('Zoom changed to:', currentZoom);
+        
+        // Only show the notice if the user wasn't the one who initiated a recent filter change
+        if (!window.userInitiatedFilterChange) {
+            // Consider zoom level 6+ as "zoomed in" for this purpose
+            if (currentZoom > 5) {
+                showFilterInactiveNotice(false); // Don't change the radio button
+            } else if (currentZoom <= 3) {
+                // If zoomed way out, ensure "All Years" is selected
+                resetToAllYears(true); // Reset even the visual state
             }
         }
+        
+        // Reset the flag after processing the zoom event
+        window.userInitiatedFilterChange = false;
     });
     
     // Define colors for different years
@@ -425,7 +422,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Helper function to show filter inactive notice
-    function showFilterInactiveNotice() {
+    function showFilterInactiveNotice(changeRadioButton = true) {
         const yearLegend = document.querySelector('.year-legend');
         if (yearLegend && window.activeYearFilter !== 'all') {
             // Add a class to show filter has been automatically deselected
@@ -439,11 +436,41 @@ document.addEventListener('DOMContentLoaded', function() {
                 yearLegend.appendChild(notice);
             }
             
-            // Reset the All Years radio button to match the visual state
-            const allYearsRadio = document.getElementById('year-all');
-            if (allYearsRadio) {
-                allYearsRadio.checked = true;
+            // Reset the All Years radio button to match the visual state ONLY if requested
+            if (changeRadioButton) {
+                const allYearsRadio = document.getElementById('year-all');
+                if (allYearsRadio) {
+                    allYearsRadio.checked = true;
+                }
             }
+        }
+    }
+    
+    // Helper function to reset to All Years view
+    function resetToAllYears(updateVisualState = false) {
+        window.activeYearFilter = 'all';
+        
+        // Only update the visual state (radio buttons) if requested
+        if (updateVisualState) {
+            const yearLegend = document.querySelector('.year-legend');
+            if (yearLegend) {
+                yearLegend.classList.remove('filter-inactive');
+                
+                // Remove the notice if present
+                const notice = yearLegend.querySelector('.filter-inactive-notice');
+                if (notice) {
+                    notice.remove();
+                }
+                
+                // Update the radio button
+                const allYearsRadio = document.getElementById('year-all');
+                if (allYearsRadio) {
+                    allYearsRadio.checked = true;
+                }
+            }
+            
+            // Refresh markers to show all years
+            displayMarkers(diveLogsData, 'all');
         }
     }
     
@@ -468,12 +495,8 @@ document.addEventListener('DOMContentLoaded', function() {
         // Show sidebar by adding active class
         sidebar.classList.add('active');
         
-        // Reset year filter to "All Years" when viewing individual dive details
-        if (window.activeYearFilter !== 'all') {
-            // Update global state but don't refresh the map
-            window.activeYearFilter = 'all';
-            showFilterInactiveNotice();
-        }
+        // Show the inactive filter notice but don't change the year filter's visual state
+        showFilterInactiveNotice(false);
         
         // Log visibility status to help debug
         console.log('Sidebar active:', sidebar.classList.contains('active'));
@@ -712,7 +735,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 .openOn(map);
             
             // When clicking a cluster, add visual indication that filter might be inactive
-            showFilterInactiveNotice();
+            // but don't change the radio button
+            showFilterInactiveNotice(false);
             
             // Add event listeners for "Zoom" links after popup is opened
             setTimeout(() => {
@@ -723,7 +747,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         const lng = parseFloat(this.getAttribute('data-lng'));
                         if (!isNaN(lat) && !isNaN(lng)) {
                             // When zooming to a specific location, show filter inactive notice
-                            showFilterInactiveNotice();
+                            // but don't change the radio button
+                            showFilterInactiveNotice(false);
                             
                             map.setView([lat, lng], 14);
                             map.closePopup();
@@ -873,7 +898,14 @@ document.addEventListener('DOMContentLoaded', function() {
             // Add event listeners for year filter
             document.addEventListener('change', function(e) {
                 if (e.target && e.target.name === 'year-filter') {
+                    // This is a user-initiated filter change
+                    window.userInitiatedFilterChange = true;
+                    
+                    // Ignore the next zoom event to prevent it from interfering with the filter change
+                    window.ignoreNextZoomEvent = true;
+                    
                     const selectedYear = e.target.value;
+                    console.log('Year filter changed to:', selectedYear);
                     
                     // Update the global filter state
                     window.activeYearFilter = selectedYear;
