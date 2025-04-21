@@ -52,10 +52,11 @@ Done with Vibe Coding.
 - [x] create a php script or so which creates all nesecassary files, folders etc and copies them from the git to the server. so I just upload this one php script and it will create everything and asks me to fill in database credentials, maybe a name or whatever is needed
 - [x] Fatal error: Uncaught mysqli_sql_exception: Unknown column 'fish_id' in 'where clause' in fish_manager.php:111 Stack trace:  on line 111
 
-
+### install script and get started
 - [x] install script: install script: "Database setup file not found. Please place your database_setup.sql file in the application's root directory." after succesfully enter credentials
 - [x] install script: in the end I get a "Not Found The requested URL was not found on this server."
 - [x] install script: make sure to copy the needed files from the github source
+- [x] if install script reruns make sure it shall check before what is there already
 - [ ] add a proper admin panel to manage all aspects of the application from a single interface
 - [ ] implement HTTPS support by default for better security
 - [ ] create user role system for multiple divers sharing the same installation
