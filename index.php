@@ -176,7 +176,8 @@ $locationCount = count($uniqueLocations);
 // Get dive logs for the map
 $diveLogsQuery = "SELECT id, location, date, rating, depth, duration, latitude, longitude, 
                         temperature, visibility, air_temperature, dive_site_type, buddy, description, comments,
-                        YEAR(date) as year
+                        YEAR(date) as year, dive_site,
+                        air_consumption_start, air_consumption_end, weight, suit_type, water_type
                  FROM divelogs 
                  WHERE latitude IS NOT NULL AND longitude IS NOT NULL
                  ORDER BY date DESC";
@@ -189,6 +190,14 @@ if ($diveLogsResult && $diveLogsResult->num_rows > 0) {
     while ($row = $diveLogsResult->fetch_assoc()) {
         // Add the raw dive log data
         $diveLog = $row;
+        
+        // Add technical fields to ensure they're all available
+        if (!isset($diveLog['air_consumption_start'])) $diveLog['air_consumption_start'] = null;
+        if (!isset($diveLog['air_consumption_end'])) $diveLog['air_consumption_end'] = null;
+        if (!isset($diveLog['weight'])) $diveLog['weight'] = null;
+        if (!isset($diveLog['suit_type'])) $diveLog['suit_type'] = null;
+        if (!isset($diveLog['water_type'])) $diveLog['water_type'] = null;
+        if (!isset($diveLog['dive_site'])) $diveLog['dive_site'] = null;
         
         // Get fish sightings count using prepared statement
         $fishQuery = "SELECT COUNT(*) as count FROM fish_sightings WHERE divelog_id = ?";
@@ -274,7 +283,8 @@ if ($cacheBust) {
     // Re-run the query to ensure fresh data
     $diveLogsQuery = "SELECT id, location, date, rating, depth, duration, latitude, longitude, 
                          temperature, visibility, air_temperature, dive_site_type, buddy, description, comments,
-                         YEAR(date) as year
+                         YEAR(date) as year, dive_site,
+                         air_consumption_start, air_consumption_end, weight, suit_type, water_type
                   FROM divelogs 
                   WHERE latitude IS NOT NULL AND longitude IS NOT NULL
                   ORDER BY date DESC";
@@ -288,6 +298,14 @@ if ($cacheBust) {
         while ($row = $diveLogsResult->fetch_assoc()) {
             // Add the raw dive log data
             $diveLog = $row;
+            
+            // Add technical fields to ensure they're all available
+            if (!isset($diveLog['air_consumption_start'])) $diveLog['air_consumption_start'] = null;
+            if (!isset($diveLog['air_consumption_end'])) $diveLog['air_consumption_end'] = null;
+            if (!isset($diveLog['weight'])) $diveLog['weight'] = null;
+            if (!isset($diveLog['suit_type'])) $diveLog['suit_type'] = null;
+            if (!isset($diveLog['water_type'])) $diveLog['water_type'] = null;
+            if (!isset($diveLog['dive_site'])) $diveLog['dive_site'] = null;
             
             // Get fish sightings count using prepared statement
             $fishQuery = "SELECT COUNT(*) as count FROM fish_sightings WHERE divelog_id = ?";
@@ -357,7 +375,11 @@ if ($cacheBust) {
         }
     }
 }
+
+// Convert dive logs to JSON for JavaScript
+$diveLogsJSON = json_encode($diveLogs);
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -373,10 +395,23 @@ if ($cacheBust) {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <style>
-        #map {
-            height: 600px;
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .map-header {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        #map-container {
             width: 100%;
+            margin-bottom: 20px;
+        }
+        #map {
+            height: 75vh;
             border-radius: 8px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
@@ -498,6 +533,54 @@ if ($cacheBust) {
                 <!-- Stats container with consistent width -->
                 <div class="dive-stats-container">
                     <div class="row" id="dive-stats"></div>
+                    
+                    <!-- Most Valuable Stats Section -->
+                    <div class="row mt-3" id="most-valuable-stats">
+                        <div class="col-md-6 mb-3">
+                            <div class="stat-card" style="border-top: 3px solid #28a745">
+                                <div class="stat-icon">
+                                    <i class="fas fa-trophy" style="color: #28a745"></i>
+                                </div>
+                                <div class="stat-content">
+                                    <h3 class="stat-title">Most Efficient Dive</h3>
+                                    <div id="most-efficient-dive" class="valuable-stat-content">
+                                        <div class="text-center py-3">
+                                            <i class="fas fa-spinner fa-spin"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="stat-card" style="border-top: 3px solid #dc3545">
+                                <div class="stat-icon">
+                                    <i class="fas fa-exclamation-triangle" style="color: #dc3545"></i>
+                                </div>
+                                <div class="stat-content">
+                                    <h3 class="stat-title">Least Efficient Dive</h3>
+                                    <div id="least-efficient-dive" class="valuable-stat-content">
+                                        <div class="text-center py-3">
+                                            <i class="fas fa-spinner fa-spin"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Advanced Stats Section - Depth/Duration/Consumption Analysis -->
+                <div class="dive-advanced-stats-container mt-4 mb-4">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">Depth & Air Consumption Analysis</h5>
+                        </div>
+                        <div class="card-body" id="depth-duration-stats">
+                            <div class="text-center">
+                                <i class="fas fa-spinner fa-spin"></i> Calculating statistics...
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -506,7 +589,7 @@ if ($cacheBust) {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Transfer PHP data to JavaScript
-        const diveLogsData = <?php echo json_encode($diveLogs); ?>;
+        const diveLogsData = <?php echo $diveLogsJSON; ?>;
         
         // Check if we should highlight a specific location from URL params
         const highlightLat = <?php echo $highlightLat ? $highlightLat : 'null'; ?>;
@@ -514,5 +597,6 @@ if ($cacheBust) {
         const highlightTitle = "<?php echo $highlightTitle; ?>";
     </script>
     <script src="map.js?v=<?php echo time(); ?>"></script>
+    <script src="script.js?v=<?php echo time(); ?>"></script>
 </body>
 </html> 

@@ -1,6 +1,9 @@
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Map.js loaded');
     
+    // Initialize layout - add sidebar container next to map
+    initializeMapLayout();
+    
     // Initialize the map
     const map = L.map('map').setView([20, 0], 2);
     
@@ -55,13 +58,9 @@ document.addEventListener('DOMContentLoaded', function() {
             // Create marker at the dive's coordinates
             const marker = L.circleMarker([lat, lng], markerOptions);
             
-            // Create popup content for the marker
-            const popupContent = createDivePopup(dive);
-            
-            // Bind popup to marker
-            marker.bindPopup(popupContent, {
-                maxWidth: 350,
-                className: 'dive-popup-container'
+            // Instead of binding a popup, we'll update the sidebar with the dive details on click
+            marker.on('click', function() {
+                showDiveDetails(dive);
             });
             
             // Store the dive data in the marker for later access
@@ -328,21 +327,229 @@ document.addEventListener('DOMContentLoaded', function() {
         return content;
     }
     
+    // Function to initialize the map layout with a sidebar
+    function initializeMapLayout() {
+        // Get the container that holds the map
+        const mapContainer = document.getElementById('map-container');
+        if (!mapContainer) {
+            console.error('Map container not found!');
+            return;
+        }
+        
+        // Create the sidebar container
+        const sidebarContainer = document.createElement('div');
+        sidebarContainer.id = 'dive-details-sidebar';
+        sidebarContainer.className = 'dive-details-sidebar';
+        sidebarContainer.innerHTML = `
+            <div class="sidebar-header">
+                <h3>Dive Details</h3>
+                <button class="close-sidebar"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="sidebar-content">
+                <div class="empty-state">
+                    <div class="empty-icon"><i class="fas fa-map-marker-alt"></i></div>
+                    <p>Click on a dive marker to view details</p>
+                </div>
+            </div>
+        `;
+        
+        // Restructure the layout - create a container for both map and sidebar
+        const flexContainer = document.createElement('div');
+        flexContainer.className = 'map-sidebar-container';
+        
+        // Get the original map element
+        const mapElement = document.getElementById('map');
+        const mapParent = mapElement.parentNode;
+        
+        // Create a new map container with correct size
+        const newMapContainer = document.createElement('div');
+        newMapContainer.id = 'map';
+        newMapContainer.className = 'map-element';
+        
+        // Replace old map with flex container
+        mapParent.replaceChild(flexContainer, mapElement);
+        
+        // Add map and sidebar to the flex container
+        flexContainer.appendChild(newMapContainer);
+        flexContainer.appendChild(sidebarContainer);
+        
+        // Add styles to the head
+        const styleElement = document.createElement('style');
+        styleElement.textContent = `
+            .map-sidebar-container {
+                display: flex;
+                height: 75vh;
+                width: 100%;
+                position: relative;
+            }
+            
+            .map-element {
+                flex: 3;
+                height: 100%;
+                z-index: 1;
+            }
+            
+            .dive-details-sidebar {
+                flex: 1;
+                height: 100%;
+                overflow-y: auto;
+                background-color: white;
+                box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+                padding: 0;
+                border-left: 1px solid #e0e0e0;
+                transition: transform 0.3s ease;
+                z-index: 2;
+                display: none;
+            }
+            
+            .dive-details-sidebar.active {
+                display: block;
+            }
+            
+            .sidebar-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 10px 15px;
+                border-bottom: 1px solid #e0e0e0;
+                background-color: #f8f9fa;
+                position: sticky;
+                top: 0;
+                z-index: 10;
+            }
+            
+            .sidebar-header h3 {
+                margin: 0;
+                font-size: 1.2rem;
+            }
+            
+            .close-sidebar {
+                background: none;
+                border: none;
+                cursor: pointer;
+                font-size: 1.2rem;
+                color: #666;
+            }
+            
+            .sidebar-content {
+                padding: 15px;
+            }
+            
+            .empty-state {
+                text-align: center;
+                padding: 30px 20px;
+                color: #6c757d;
+            }
+            
+            .empty-icon {
+                font-size: 3rem;
+                margin-bottom: 15px;
+                color: #adb5bd;
+            }
+            
+            /* Responsive adjustments */
+            @media (max-width: 768px) {
+                .map-sidebar-container {
+                    flex-direction: column;
+                    height: auto;
+                }
+                
+                .map-element {
+                    height: 50vh;
+                    width: 100%;
+                }
+                
+                .dive-details-sidebar {
+                    width: 100%;
+                    height: auto;
+                    max-height: 50vh;
+                    border-left: none;
+                    border-top: 1px solid #e0e0e0;
+                }
+            }
+            
+            /* Adjust existing dive-popup styles for sidebar */
+            .dive-details-sidebar .dive-popup {
+                box-shadow: none;
+                padding: 0;
+                border-radius: 0;
+                max-width: none;
+            }
+            
+            .dive-details-sidebar .dive-header h3 {
+                font-size: 1.3rem;
+            }
+            
+            .dive-details-sidebar .dive-img {
+                height: 120px;
+            }
+        `;
+        document.head.appendChild(styleElement);
+        
+        // Add event listener for close button
+        document.querySelector('.close-sidebar').addEventListener('click', function() {
+            hideDiveDetails();
+        });
+    }
+    
+    // Function to show dive details in the sidebar
+    function showDiveDetails(dive) {
+        const sidebar = document.getElementById('dive-details-sidebar');
+        const sidebarContent = sidebar.querySelector('.sidebar-content');
+        
+        // Update content with dive details
+        sidebarContent.innerHTML = createDivePopup(dive);
+        
+        // Show sidebar
+        sidebar.classList.add('active');
+        
+        // Add event listeners for toggleDescription and other interactive elements
+        setupSidebarInteractions();
+    }
+    
+    // Function to hide dive details sidebar
+    function hideDiveDetails() {
+        const sidebar = document.getElementById('dive-details-sidebar');
+        sidebar.classList.remove('active');
+    }
+    
+    // Set up event listeners for sidebar interactions
+    function setupSidebarInteractions() {
+        // Find any read more links and add event listeners
+        document.querySelectorAll('.read-more').forEach(link => {
+            link.addEventListener('click', function(event) {
+                event.preventDefault();
+                toggleDescription(this, event);
+            });
+        });
+        
+        // Add event listeners for fish tooltip triggers
+        document.querySelectorAll('.fish-tooltip-trigger').forEach(trigger => {
+            trigger.addEventListener('mouseenter', function() {
+                this.querySelector('.fish-tooltip').style.display = 'block';
+            });
+            
+            trigger.addEventListener('mouseleave', function() {
+                this.querySelector('.fish-tooltip').style.display = 'none';
+            });
+        });
+    }
+    
     // Function to toggle between short and full description
     function toggleDescription(link, event) {
         event.preventDefault();
-        const parent = $(link).parent();
-        const shortDesc = parent.find('.short-desc');
-        const fullDesc = parent.find('.full-desc');
+        const parent = link.parentNode;
+        const shortDesc = parent.querySelector('.short-desc');
+        const fullDesc = parent.querySelector('.full-desc');
         
-        if (shortDesc.is(':visible')) {
-            shortDesc.hide();
-            fullDesc.show();
-            $(link).text('Read less');
+        if (shortDesc.style.display !== 'none') {
+            shortDesc.style.display = 'none';
+            fullDesc.style.display = 'block';
+            link.textContent = 'Read less';
         } else {
-            fullDesc.hide();
-            shortDesc.show();
-            $(link).text('Read more');
+            fullDesc.style.display = 'none';
+            shortDesc.style.display = 'block';
+            link.textContent = 'Read more';
         }
     }
     
