@@ -52,6 +52,16 @@ Done with Vibe Coding.
 
 ## Recent Changes
 
+- **Standardized CSV Format and Import/Export**:
+  - Improved CSV file handling for consistent formatting
+  - Fixed issues with decimal separators (standardized to periods)
+  - Added proper quoting for text fields containing special characters
+  - Enhanced handling of duplicate entries
+  - Removed inconsistencies in field formatting
+  - Fixed coordinate formatting for proper geocoding
+  - Improved data validation during import process
+  - Standardized empty field handling
+
 - **Fixed SQL Error for Empty Numeric Fields**:
   - Fixed "Incorrect integer value" error when submitting empty values for numeric fields like visibility
   - Improved form handling to convert empty string inputs to NULL values in database
