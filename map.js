@@ -20,75 +20,23 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add styles directly
     const styleElement = document.createElement('style');
     styleElement.textContent = `
-        .dive-details-sidebar {
-            position: fixed;
-            top: 0;
-            right: 0;
-            width: 350px;
-            height: 100vh;
-            background-color: white;
-            box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+        /* Custom map-specific styles */
+        .map-error-message {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
             z-index: 1000;
-            overflow-y: auto;
-            transform: translateX(100%);
-            transition: transform 0.3s ease;
+            max-width: 80%;
         }
         
-        .dive-details-sidebar.active {
-            transform: translateX(0);
-        }
-        
-        .sidebar-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 15px;
-            background-color: #f8f9fa;
-            border-bottom: 1px solid #eee;
-            position: sticky;
-            top: 0;
-            z-index: 10;
-        }
-        
-        .sidebar-header h3 {
-            margin: 0;
-            font-size: 1.2rem;
-        }
-        
-        .close-sidebar {
-            background: none;
-            border: none;
-            font-size: 1.2rem;
-            cursor: pointer;
-        }
-        
-        .sidebar-content {
-            padding: 15px;
-        }
-        
-        .empty-state {
-            text-align: center;
-            padding: 30px 20px;
-            color: #6c757d;
-        }
-        
-        .empty-icon {
-            font-size: 3rem;
-            margin-bottom: 15px;
-            color: #adb5bd;
-        }
-        
-        @media (max-width: 768px) {
-            .dive-details-sidebar {
-                width: 100%;
-                height: 50vh;
-                top: 50%;
-                transform: translateY(100%);
-            }
-            
-            .dive-details-sidebar.active {
-                transform: translateY(0);
-            }
+        .no-data-message {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            max-width: 80%;
         }
     `;
     document.head.appendChild(styleElement);
@@ -436,8 +384,29 @@ document.addEventListener('DOMContentLoaded', function() {
         // Update content with dive details
         sidebarContent.innerHTML = createDivePopup(dive);
         
-        // Show sidebar
+        // Make sure the sidebar is visible
+        sidebar.style.display = 'block';
+        
+        // Show sidebar by adding active class
         sidebar.classList.add('active');
+        
+        // Unselect year filter (select "All Years" radio button) when viewing individual dive details
+        const allYearsRadio = document.getElementById('year-all');
+        if (allYearsRadio) {
+            // Only unselect if a year filter was active (not "All Years")
+            const activeYearFilter = document.querySelector('input[name="year-filter"]:checked');
+            if (activeYearFilter && activeYearFilter.value !== 'all') {
+                // Set "All Years" as checked but don't trigger the change event
+                // We don't want to refresh all markers when clicking on a dive
+                allYearsRadio.checked = true;
+            }
+        }
+        
+        // Log visibility status to help debug
+        console.log('Sidebar active:', sidebar.classList.contains('active'));
+        console.log('Sidebar display:', getComputedStyle(sidebar).display);
+        console.log('Sidebar visibility:', getComputedStyle(sidebar).visibility);
+        console.log('Sidebar transform:', getComputedStyle(sidebar).transform);
         
         // Add event listeners for toggleDescription
         document.querySelectorAll('.read-more').forEach(link => {
@@ -716,6 +685,12 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
+    // Make displayMarkers available globally as mapDisplayMarkers for script.js to call
+    window.mapDisplayMarkers = function(dives, selectedYear = 'all') {
+        console.log(`mapDisplayMarkers called with ${dives?.length || 0} dives and year ${selectedYear}`);
+        displayMarkers(dives, selectedYear);
+    };
+    
     // Create year legend and filter controls
     function createYearLegend(years) {
         const legend = L.control({ position: 'bottomright' });
@@ -802,121 +777,41 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    // Fetch dive data and initialize map
-    fetch('get_dive_data.php')
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`Server error: ${response.status} ${response.statusText}`);
-            }
-            console.log('Response received, attempting to parse JSON');
-            return response.text().then(text => {
-                try {
-                    // Check if response is empty
-                    if (!text || text.trim() === '') {
-                        throw new Error('Server returned empty response');
-                    }
-                    
-                    // Check if response starts with PHP error
-                    if (text.includes('Fatal error') || text.includes('Parse error') || text.includes('Warning:')) {
-                        console.error('PHP error detected in response');
-                        throw new Error('Server error: PHP error in response');
-                    }
-                    
-                    // Log the raw text if it's small enough
-                    if (text.length < 1000) {
-                        console.log('Raw response:', text);
-                    } else {
-                        console.log('Raw response (first 1000 chars):', text.substring(0, 1000));
-                    }
-                    
-                    return JSON.parse(text);
-                } catch (e) {
-                    console.error('JSON parse error:', e);
-                    console.error('Raw response causing error:', text);
-                    throw new Error(`Failed to parse server response: ${e.message}`);
-                }
-            });
-        })
-        .then(data => {
-            // Check if we received an error in the JSON
-            if (data && data.error) {
-                throw new Error(data.error);
-            }
-            
-            // Check if data is in the expected format
-            if (!Array.isArray(data)) {
-                // For single dive responses, the API might return {success: true, data: {}}
-                if (data.success && data.data) {
-                    data = [data.data];
-                } else {
-                    throw new Error('Server returned unexpected data format');
-                }
-            }
-            
-            // Store dive data globally
-            window.diveData = data;
-            
-            console.log(`Received ${data.length} dive logs`);
-            console.log('Sample data item:', data.length > 0 ? data[0] : 'No data');
-            
-            // Extract unique years for filtering
-            const uniqueYears = [...new Set(data.map(dive => dive.year).filter(year => year))].sort().reverse();
-            
-            // Add the year legend with filter controls
+    // Initialize the map with dive markers when the page loads
+    if (typeof diveLogsData !== 'undefined' && Array.isArray(diveLogsData) && diveLogsData.length > 0) {
+        console.log(`Initializing map with ${diveLogsData.length} dive logs`);
+        
+        // Display all markers initially
+        displayMarkers(diveLogsData, 'all');
+        
+        // Extract unique years for year filter
+        const uniqueYears = [...new Set(diveLogsData.map(dive => dive.year))].filter(Boolean);
+        
+        // Add the year legend if we have years
+        if (uniqueYears.length > 0) {
             createYearLegend(uniqueYears).addTo(map);
             
-            // Display all markers initially
-            displayMarkers(data);
-            
-            // Add event listeners for year filter controls
+            // Add event listeners for year filter
             document.addEventListener('change', function(e) {
                 if (e.target && e.target.name === 'year-filter') {
                     const selectedYear = e.target.value;
-                    displayMarkers(data, selectedYear);
+                    
+                    // If "All Years" is selected, zoom out to world view
+                    if (selectedYear === 'all') {
+                        // Display all markers first
+                        displayMarkers(diveLogsData, 'all');
+                        
+                        // Then set world view
+                        map.setView([20, 0], 2);
+                    } else {
+                        // Otherwise just display markers for the selected year
+                        displayMarkers(diveLogsData, selectedYear);
+                    }
                 }
             });
-            
-            // Add event listeners for buttons if they exist
-            document.querySelectorAll('.year-filter').forEach(button => {
-                button.addEventListener('click', function() {
-                    const selectedYear = this.getAttribute('data-year');
-                    
-                    // Update radio buttons in legend if they exist
-                    const radio = document.getElementById(`year-${selectedYear === 'all' ? 'all' : selectedYear}`);
-                    if (radio) {
-                        radio.checked = true;
-                    }
-                    
-                    // Update active class on buttons
-                    document.querySelectorAll('.year-filter').forEach(btn => {
-                        btn.classList.remove('active');
-                    });
-                    this.classList.add('active');
-                    
-                    // Update markers
-                    displayMarkers(data, selectedYear);
-                });
-            });
-        })
-        .catch(error => {
-            console.error('Error fetching dive data:', error);
-            
-            // Determine the user-friendly error message
-            let errorMessage;
-            
-            if (error.name === 'TypeError' && error.message.includes('NetworkError')) {
-                errorMessage = 'Network error: Please check your internet connection.';
-            } else if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-                errorMessage = 'Unable to contact the server. Please try again later.';
-            } else if (error.message.includes('JSON')) {
-                errorMessage = 'Error processing server response. Please contact the administrator.';
-            } else if (error.message.includes('Server error')) {
-                errorMessage = error.message;
-            } else {
-                errorMessage = 'Failed to load dive data. Please refresh the page or try again later.';
-            }
-            
-            // Show error on the map using our new function
-            showMapError(errorMessage);
-        });
+        }
+    } else {
+        console.error('No dive data available to display on the map');
+        showMapError('No dive data available');
+    }
 });
