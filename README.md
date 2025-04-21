@@ -268,6 +268,15 @@ The Divelog application now includes a simple installer script that makes deploy
 
 The installer will check your server's compatibility, create necessary directories, help you set up your database connection, and initialize the database with the required tables and sample data.
 
+### Existing Installation Detection
+
+The installer now includes smart detection for existing installations:
+- Automatically detects if Divelog is already installed on the server
+- Provides clear warnings when existing components are found
+- Offers options to either continue with the existing installation or start fresh
+- Creates automatic backups before overwriting existing database tables
+- Includes a force mode option to bypass checks when needed
+
 ### Security Features
 
 The installer includes security features:
