@@ -12,9 +12,26 @@ session_start();
 
 // Check if reset requested - clear session and restart
 if (isset($_GET['reset'])) {
-    // Clear all installation data from session
-    unset($_SESSION['form_data']);
-    unset($_SESSION['install_token']);
+    // Completely reset the session
+    $_SESSION = array();
+    
+    // If session has a cookie, destroy that too
+    if (ini_get("session.use_cookies")) {
+        $params = session_get_cookie_params();
+        setcookie(session_name(), '', time() - 42000,
+            $params["path"], $params["domain"],
+            $params["secure"], $params["httponly"]
+        );
+    }
+    
+    // Destroy the session completely
+    session_destroy();
+    
+    // Start a new session
+    session_start();
+    
+    // Set a flag to indicate a reset was performed
+    $_SESSION['reset_performed'] = true;
     
     // Initialize with default values
     $_SESSION['form_data'] = [
@@ -27,6 +44,9 @@ if (isset($_GET['reset'])) {
         'socket_path' => '',
         'use_socket' => false
     ];
+    
+    // Generate a new token
+    $_SESSION['install_token'] = bin2hex(random_bytes(32));
     
     // Redirect to the first step
     header('Location: install.php?step=1&cleared=1');
@@ -44,7 +64,10 @@ if (!isset($_SESSION['form_data'])) {
         'db_user' => '',
         'db_pass' => '',
         'db_name' => 'divelog',
-        'admin_email' => ''
+        'admin_email' => '',
+        'db_port' => 3306,
+        'socket_path' => '',
+        'use_socket' => false
     ];
 }
 
@@ -84,6 +107,14 @@ $step = isset($_GET['step']) ? (int)$_GET['step'] : 1;
 $message = '';
 $error = '';
 $success = false;
+
+// Check for reset notification
+$reset_message = '';
+if (isset($_SESSION['reset_performed']) && $_SESSION['reset_performed'] === true) {
+    $reset_message = "The installation has been completely reset. All settings have been restored to defaults.";
+    // Clear the flag so the message appears only once
+    $_SESSION['reset_performed'] = false;
+}
 
 // Process form submissions based on current step
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -669,6 +700,12 @@ function checkUploadSize() {
                 </div>
             <?php endif; ?>
 
+            <?php if (!empty($reset_message)): ?>
+                <div class="alert alert-info">
+                    <i class="bi bi-arrow-repeat"></i> <?php echo $reset_message; ?>
+                </div>
+            <?php endif; ?>
+
             <?php if (!empty($error)): ?>
                 <div class="alert alert-danger">
                     <?php echo $error; ?>
@@ -1057,12 +1094,9 @@ function checkUploadSize() {
         // Check if we need to clear local storage (after reset)
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.has('cleared')) {
-            // Clear all divelog installer related items from localStorage
-            Object.keys(localStorage).forEach(key => {
-                if (key.startsWith('divelog_installer_')) {
-                    localStorage.removeItem(key);
-                }
-            });
+            // Clean sweep of ALL localStorage in case there are other keys we might miss
+            localStorage.clear();
+            console.log("Installation storage has been cleared");
         }
         
         // Toggle socket path field visibility
@@ -1070,6 +1104,12 @@ function checkUploadSize() {
         const socketPathField = document.querySelector('.socket-path');
         
         if (useSocketCheckbox && socketPathField) {
+            // Set initial state based on PHP session data
+            <?php if (isset($_SESSION['form_data']['use_socket']) && $_SESSION['form_data']['use_socket']): ?>
+            useSocketCheckbox.checked = true;
+            socketPathField.style.display = 'block';
+            <?php endif; ?>
+            
             useSocketCheckbox.addEventListener('change', function() {
                 socketPathField.style.display = this.checked ? 'block' : 'none';
             });
