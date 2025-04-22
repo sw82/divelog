@@ -56,16 +56,62 @@ if (isset($_GET['reset'])) {
 // Check if clean marker requested - remove installation marker file
 if (isset($_GET['clean_marker'])) {
     $markerFile = $baseDir . '/.install_complete';
+    
+    // Add debugging information
+    error_log("Attempting to remove marker file: " . $markerFile);
+    error_log("File exists before removal: " . (file_exists($markerFile) ? "Yes" : "No"));
+    
+    // Try with different methods to ensure removal
+    $removalSuccess = false;
+    
+    // Method 1: Direct unlink with error suppression
     if (file_exists($markerFile)) {
-        if (@unlink($markerFile)) {
-            $_SESSION['marker_removed'] = true;
-        } else {
-            $_SESSION['marker_removal_failed'] = true;
+        $removalSuccess = @unlink($markerFile);
+        error_log("Method 1 (unlink) result: " . ($removalSuccess ? "Success" : "Failed"));
+    }
+    
+    // Method 2: Use PHP file operations if unlink fails
+    if (!$removalSuccess && file_exists($markerFile)) {
+        // Try opening with write permissions to truncate
+        $fp = @fopen($markerFile, 'w');
+        if ($fp) {
+            ftruncate($fp, 0);
+            fclose($fp);
+            $removalSuccess = @unlink($markerFile);
+            error_log("Method 2 (truncate+unlink) result: " . ($removalSuccess ? "Success" : "Failed"));
         }
     }
     
-    // Redirect to the first step
-    header('Location: install.php?step=1');
+    // Method 3: As a last resort, empty the file if we can't delete it
+    if (!$removalSuccess && file_exists($markerFile)) {
+        $emptySuccess = @file_put_contents($markerFile, '');
+        error_log("Method 3 (empty file) result: " . ($emptySuccess !== false ? "Success" : "Failed"));
+        $removalSuccess = $emptySuccess !== false;
+    }
+    
+    // Check if the file still exists
+    error_log("File exists after removal attempts: " . (file_exists($markerFile) ? "Yes" : "No"));
+    
+    // Set session variables based on the outcome
+    if ($removalSuccess || !file_exists($markerFile)) {
+        $_SESSION['marker_removed'] = true;
+    } else {
+        $_SESSION['marker_removal_failed'] = true;
+        // Store detailed error info for debugging
+        $_SESSION['marker_removal_error'] = [
+            'file' => $markerFile,
+            'exists' => file_exists($markerFile),
+            'readable' => is_readable($markerFile),
+            'writable' => is_writable($markerFile),
+            'permissions' => substr(sprintf('%o', fileperms($markerFile)), -4)
+        ];
+    }
+    
+    // Force a re-check of installation status by clearing any cached data
+    unset($_SESSION['existing_installation_check']);
+    
+    // Redirect to the first step with a parameter to force refresh
+    header('Location: install.php?step=1&marker_action='.time());
     exit;
 }
 
@@ -121,7 +167,14 @@ $requiredDirs = [
 // Check for existing installation
 $existingInstallation = null;
 if (!isset($_GET['force_new'])) {
-    $existingInstallation = checkExistingInstallation();
+    // Use cached check unless explicitly requesting a refresh
+    if (isset($_SESSION['existing_installation_check']) && !isset($_GET['marker_action'])) {
+        $existingInstallation = $_SESSION['existing_installation_check'];
+    } else {
+        $existingInstallation = checkExistingInstallation();
+        // Cache the check result
+        $_SESSION['existing_installation_check'] = $existingInstallation;
+    }
 }
 
 // Set up page tracking
@@ -147,6 +200,22 @@ if (isset($_SESSION['marker_removed']) && $_SESSION['marker_removed'] === true) 
     $_SESSION['marker_removed'] = false;
 } else if (isset($_SESSION['marker_removal_failed']) && $_SESSION['marker_removal_failed'] === true) {
     $marker_message = "Failed to remove installation marker file. Please check file permissions.";
+    
+    // Add detailed error information if available
+    if (isset($_SESSION['marker_removal_error'])) {
+        $errorDetails = $_SESSION['marker_removal_error'];
+        $marker_message .= "<div class=\"mt-2 small\">Debugging information:<ul>";
+        $marker_message .= "<li>File path: " . htmlspecialchars($errorDetails['file']) . "</li>";
+        $marker_message .= "<li>File exists: " . ($errorDetails['exists'] ? 'Yes' : 'No') . "</li>";
+        $marker_message .= "<li>File readable: " . ($errorDetails['readable'] ? 'Yes' : 'No') . "</li>";
+        $marker_message .= "<li>File writable: " . ($errorDetails['writable'] ? 'Yes' : 'No') . "</li>";
+        $marker_message .= "<li>File permissions: " . htmlspecialchars($errorDetails['permissions']) . "</li>";
+        $marker_message .= "</ul></div>";
+        
+        // Clear the error details
+        unset($_SESSION['marker_removal_error']);
+    }
+    
     $_SESSION['marker_removal_failed'] = false;
 }
 
