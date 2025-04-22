@@ -142,82 +142,144 @@ if (isset($_GET['list_dir'])) {
 
 // Check if download all files is requested
 if (isset($_GET['download_all'])) {
-    // List of essential files to download from GitHub
-    $files_to_download = [
-        'index.php',
-        'database_setup.sql',
-        'config.php.example', // Will be renamed to config.php later
-        'navigation.php',
-        'map.js',
-        'get_dive_data.php',
-        'style.css',
-        'check_years.php',
-        'script.js',
-        'manage_db.php',
-        'divelog_functions.php',
-        'populate_db.php',
-        'divelist.php',
-        'export_csv.php',
-        'view_dive.php',
-        'edit_dive.php',
-        'edit_dive_form.php',
-        'fish_manager.php',
-        '.htaccess'
-    ];
-    
+    // Initialize arrays to store results
+    $created_dirs = [];
+    $failed_dirs = [];
     $downloaded_files = [];
     $failed_files = [];
+    $permission_results = [];
     
-    // Create required directories
+    // Phase 1: Check permissions on the base directory
+    $basePermissionOk = is_writable($baseDir);
+    $permission_results[] = "Base directory (" . $baseDir . "): " . ($basePermissionOk ? "Writable" : "Not writable");
+    
+    // Check if we can create a test file
+    $testFile = $baseDir . '/test_permissions_' . time() . '.tmp';
+    $canWriteFiles = @file_put_contents($testFile, 'test');
+    if ($canWriteFiles !== false) {
+        $permission_results[] = "File creation test: Success";
+        @unlink($testFile); // Clean up test file
+    } else {
+        $permission_results[] = "File creation test: Failed";
+    }
+    
+    // Phase 2: Create required directories first (regardless of download request)
     $requiredDirs = [
         'uploads', 'uploads/dive_images', 'uploads/fish_images',
         'backups', 'temp'
     ];
     
+    $dirCreationSuccess = true;
+    
     foreach ($requiredDirs as $dir) {
         $fullPath = $baseDir . '/' . $dir;
         if (!file_exists($fullPath)) {
-            if (!@mkdir($fullPath, 0755, true)) {
-                $failed_files[] = $dir . ' (directory creation failed)';
+            if (@mkdir($fullPath, 0755, true)) {
+                $created_dirs[] = $dir;
+                
+                // Test write permission on new directory
+                $testDirFile = $fullPath . '/test_permissions_' . time() . '.tmp';
+                $canWriteToDir = @file_put_contents($testDirFile, 'test');
+                if ($canWriteToDir !== false) {
+                    $permission_results[] = "Directory $dir: Created and writable";
+                    @unlink($testDirFile); // Clean up test file
+                } else {
+                    $permission_results[] = "Directory $dir: Created but not writable";
+                }
+            } else {
+                $failed_dirs[] = $dir;
+                $dirCreationSuccess = false;
+                $permission_results[] = "Directory $dir: Creation failed";
+            }
+        } else {
+            $created_dirs[] = $dir . " (already exists)";
+            
+            // Test write permission on existing directory
+            if (is_writable($fullPath)) {
+                $permission_results[] = "Directory $dir: Exists and writable";
+            } else {
+                $permission_results[] = "Directory $dir: Exists but not writable";
+                if (!@chmod($fullPath, 0755)) {
+                    $permission_results[] = "Directory $dir: Failed to set writable permission";
+                }
             }
         }
     }
     
-    // Download each file
-    foreach ($files_to_download as $file) {
-        $fileUrl = 'https://raw.githubusercontent.com/sw82/divelog/master/' . $file;
-        $fileContent = @file_get_contents($fileUrl);
+    // Store directory creation results
+    $_SESSION['created_dirs'] = $created_dirs;
+    $_SESSION['failed_dirs'] = $failed_dirs;
+    $_SESSION['permission_results'] = $permission_results;
+    
+    // Phase 3: Only try to download files if directories were created successfully
+    if ($dirCreationSuccess || count($created_dirs) > count($failed_dirs)) {
+        // List of essential files to download from GitHub
+        $files_to_download = [
+            'index.php',
+            'database_setup.sql',
+            'config.php.example', // Will be renamed to config.php later
+            'navigation.php',
+            'map.js',
+            'get_dive_data.php',
+            'style.css',
+            'check_years.php',
+            'script.js',
+            'manage_db.php',
+            'divelog_functions.php',
+            'populate_db.php',
+            'divelist.php',
+            'export_csv.php',
+            'view_dive.php',
+            'edit_dive.php',
+            'edit_dive_form.php',
+            'fish_manager.php',
+            '.htaccess'
+        ];
         
-        if ($fileContent !== false) {
-            // Handle special case for config.php.example
-            $targetFile = $file;
-            if ($file === 'config.php.example' && !file_exists($baseDir . '/config.php')) {
-                $targetFile = 'config.php';
-            }
+        // Download each file
+        foreach ($files_to_download as $file) {
+            $fileUrl = 'https://raw.githubusercontent.com/sw82/divelog/master/' . $file;
+            $fileContent = @file_get_contents($fileUrl);
             
-            if (@file_put_contents($baseDir . '/' . $targetFile, $fileContent) !== false) {
-                $downloaded_files[] = $targetFile;
+            if ($fileContent !== false) {
+                // Handle special case for config.php.example
+                $targetFile = $file;
+                if ($file === 'config.php.example' && !file_exists($baseDir . '/config.php')) {
+                    $targetFile = 'config.php';
+                }
+                
+                if (@file_put_contents($baseDir . '/' . $targetFile, $fileContent) !== false) {
+                    $downloaded_files[] = $targetFile;
+                } else {
+                    $failed_files[] = $file . ' (write failed)';
+                }
             } else {
-                $failed_files[] = $file . ' (write failed)';
+                $failed_files[] = $file . ' (download failed)';
             }
-        } else {
-            $failed_files[] = $file . ' (download failed)';
         }
     }
     
     // Store results in session
     $_SESSION['downloaded_files'] = $downloaded_files;
     
-    if (count($failed_files) > 0) {
-        $_SESSION['failed_files'] = $failed_files;
-        $_SESSION['full_package_failed'] = true;
+    if (count($failed_dirs) > 0 || count($failed_files) > 0) {
+        if (count($failed_dirs) > 0) {
+            $_SESSION['dirs_creation_failed'] = true;
+        }
         
-        // Check if all or most files failed - likely a permissions issue
-        if (count($failed_files) > (count($files_to_download) + count($requiredDirs)) * 0.7) {
+        if (count($failed_files) > 0) {
+            $_SESSION['files_download_failed'] = true;
+        }
+        
+        // Check if all or most operations failed - likely a permissions issue
+        $totalOperations = count($requiredDirs) + count($files_to_download);
+        $failedOperations = count($failed_dirs) + count($failed_files);
+        
+        if ($failedOperations > $totalOperations * 0.7) {
             $_SESSION['permission_issue_likely'] = true;
         }
     } else {
-        $_SESSION['full_package_downloaded'] = true;
+        $_SESSION['full_package_success'] = true;
     }
     
     // Redirect to the first step
@@ -410,13 +472,13 @@ if (isset($_SESSION['db_file_downloaded']) && $_SESSION['db_file_downloaded'] ==
 
 // Check for full package download success
 $full_package_message = '';
-if (isset($_SESSION['full_package_downloaded']) && $_SESSION['full_package_downloaded'] === true) {
+if (isset($_SESSION['full_package_success']) && $_SESSION['full_package_success'] === true) {
     $full_package_message = "Application files have been successfully downloaded. " .
                            count($_SESSION['downloaded_files']) . " files were downloaded.";
-    $_SESSION['full_package_downloaded'] = false;
-} else if (isset($_SESSION['full_package_failed']) && $_SESSION['full_package_failed'] === true) {
+    $_SESSION['full_package_success'] = false;
+} else if (isset($_SESSION['files_download_failed']) && $_SESSION['files_download_failed'] === true) {
     $full_package_message = "Failed to download some application files. Please check permissions or try again.";
-    $_SESSION['full_package_failed'] = false;
+    $_SESSION['files_download_failed'] = false;
 }
 
 // Process form submissions based on current step
@@ -1174,31 +1236,74 @@ function checkUploadSize() {
                 <div class="alert alert-info">
                     <i class="bi bi-check-circle"></i> <?php echo $full_package_message; ?>
                 </div>
-            <?php endif; ?>
-
-            <?php if (!empty($error)): ?>
-                <div class="alert alert-danger">
-                    <?php echo $error; ?>
-                </div>
-            <?php endif; ?>
-
-            <?php if (!empty($message)): ?>
+                
+                <!-- Display detailed results about directory creation -->
+                <?php if (isset($_SESSION['created_dirs']) && !empty($_SESSION['created_dirs'])): ?>
                 <div class="alert alert-success">
-                    <?php echo $message; ?>
-                </div>
-            <?php endif; ?>
-
-            <?php if (isset($_SESSION['full_package_failed']) && $_SESSION['full_package_failed']): ?>
-                <div class="alert alert-warning">
-                    <p><strong>Warning:</strong> Some files could not be downloaded:</p>
-                    <ul class="mb-0">
-                        <?php foreach ($_SESSION['failed_files'] as $failed_file): ?>
-                            <li><?php echo htmlspecialchars($failed_file); ?></li>
+                    <h5 class="alert-heading">Directories Created</h5>
+                    <ul>
+                        <?php foreach ($_SESSION['created_dirs'] as $dir): ?>
+                            <li><?php echo htmlspecialchars($dir); ?></li>
                         <?php endforeach; ?>
                     </ul>
-                    <?php unset($_SESSION['failed_files']); ?>
-                    
-                    <?php if (isset($_SESSION['permission_issue_likely']) && $_SESSION['permission_issue_likely']): ?>
+                </div>
+                <?php unset($_SESSION['created_dirs']); ?>
+                <?php endif; ?>
+                
+                <!-- Directory creation failures -->
+                <?php if (isset($_SESSION['failed_dirs']) && !empty($_SESSION['failed_dirs'])): ?>
+                <div class="alert alert-warning">
+                    <h5 class="alert-heading">Failed to Create Directories</h5>
+                    <ul>
+                        <?php foreach ($_SESSION['failed_dirs'] as $dir): ?>
+                            <li><?php echo htmlspecialchars($dir); ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+                <?php unset($_SESSION['failed_dirs']); ?>
+                <?php endif; ?>
+                
+                <!-- Permission details -->
+                <?php if (isset($_SESSION['permission_results']) && !empty($_SESSION['permission_results'])): ?>
+                <div class="alert alert-info">
+                    <h5 class="alert-heading">Permission Details</h5>
+                    <ul>
+                        <?php foreach ($_SESSION['permission_results'] as $result): ?>
+                            <li><?php echo htmlspecialchars($result); ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+                <?php unset($_SESSION['permission_results']); ?>
+                <?php endif; ?>
+                
+                <!-- Display downloaded files -->
+                <?php if (isset($_SESSION['downloaded_files']) && !empty($_SESSION['downloaded_files'])): ?>
+                <div class="alert alert-success">
+                    <h5 class="alert-heading">Downloaded Files</h5>
+                    <p>Successfully downloaded <?php echo count($_SESSION['downloaded_files']); ?> files.</p>
+                    <?php if (count($_SESSION['downloaded_files']) <= 10): ?>
+                    <ul>
+                        <?php foreach ($_SESSION['downloaded_files'] as $file): ?>
+                            <li><?php echo htmlspecialchars($file); ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                    <?php endif; ?>
+                </div>
+                <?php unset($_SESSION['downloaded_files']); ?>
+                <?php endif; ?>
+                
+                <!-- Failed files -->
+                <?php if (isset($_SESSION['failed_files']) && !empty($_SESSION['failed_files'])): ?>
+                    <div class="alert alert-warning">
+                        <p><strong>Warning:</strong> Some files could not be downloaded:</p>
+                        <ul class="mb-0">
+                            <?php foreach ($_SESSION['failed_files'] as $failed_file): ?>
+                                <li><?php echo htmlspecialchars($failed_file); ?></li>
+                            <?php endforeach; ?>
+                        </ul>
+                        <?php unset($_SESSION['failed_files']); ?>
+                        
+                        <?php if (isset($_SESSION['permission_issue_likely']) && $_SESSION['permission_issue_likely']): ?>
                         <div class="alert alert-danger mt-3">
                             <h5 class="alert-heading">Permission Issues Detected</h5>
                             <p>It looks like PHP doesn't have permission to create directories or write files on this server. This is common on shared hosting environments.</p>
@@ -1221,9 +1326,9 @@ function checkUploadSize() {
                             </ol>
                         </div>
                         <?php unset($_SESSION['permission_issue_likely']); ?>
-                    <?php endif; ?>
-                </div>
-                <?php unset($_SESSION['full_package_failed']); ?>
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
             <?php endif; ?>
 
             <!-- Step content -->
@@ -1253,7 +1358,63 @@ function checkUploadSize() {
                                         <i class="bi bi-check-circle"></i> <?php echo $full_package_message; ?>
                                     </div>
                                     
-                                    <?php if (isset($_SESSION['failed_files']) && is_array($_SESSION['failed_files']) && count($_SESSION['failed_files']) > 0): ?>
+                                    <!-- Display detailed results about directory creation -->
+                                    <?php if (isset($_SESSION['created_dirs']) && !empty($_SESSION['created_dirs'])): ?>
+                                    <div class="alert alert-success">
+                                        <h5 class="alert-heading">Directories Created</h5>
+                                        <ul>
+                                            <?php foreach ($_SESSION['created_dirs'] as $dir): ?>
+                                                <li><?php echo htmlspecialchars($dir); ?></li>
+                                            <?php endforeach; ?>
+                                        </ul>
+                                    </div>
+                                    <?php unset($_SESSION['created_dirs']); ?>
+                                    <?php endif; ?>
+                                    
+                                    <!-- Directory creation failures -->
+                                    <?php if (isset($_SESSION['failed_dirs']) && !empty($_SESSION['failed_dirs'])): ?>
+                                    <div class="alert alert-warning">
+                                        <h5 class="alert-heading">Failed to Create Directories</h5>
+                                        <ul>
+                                            <?php foreach ($_SESSION['failed_dirs'] as $dir): ?>
+                                                <li><?php echo htmlspecialchars($dir); ?></li>
+                                            <?php endforeach; ?>
+                                        </ul>
+                                    </div>
+                                    <?php unset($_SESSION['failed_dirs']); ?>
+                                    <?php endif; ?>
+                                    
+                                    <!-- Permission details -->
+                                    <?php if (isset($_SESSION['permission_results']) && !empty($_SESSION['permission_results'])): ?>
+                                    <div class="alert alert-info">
+                                        <h5 class="alert-heading">Permission Details</h5>
+                                        <ul>
+                                            <?php foreach ($_SESSION['permission_results'] as $result): ?>
+                                                <li><?php echo htmlspecialchars($result); ?></li>
+                                            <?php endforeach; ?>
+                                        </ul>
+                                    </div>
+                                    <?php unset($_SESSION['permission_results']); ?>
+                                    <?php endif; ?>
+                                    
+                                    <!-- Display downloaded files -->
+                                    <?php if (isset($_SESSION['downloaded_files']) && !empty($_SESSION['downloaded_files'])): ?>
+                                    <div class="alert alert-success">
+                                        <h5 class="alert-heading">Downloaded Files</h5>
+                                        <p>Successfully downloaded <?php echo count($_SESSION['downloaded_files']); ?> files.</p>
+                                        <?php if (count($_SESSION['downloaded_files']) <= 10): ?>
+                                        <ul>
+                                            <?php foreach ($_SESSION['downloaded_files'] as $file): ?>
+                                                <li><?php echo htmlspecialchars($file); ?></li>
+                                            <?php endforeach; ?>
+                                        </ul>
+                                        <?php endif; ?>
+                                    </div>
+                                    <?php unset($_SESSION['downloaded_files']); ?>
+                                    <?php endif; ?>
+                                    
+                                    <!-- Failed files -->
+                                    <?php if (isset($_SESSION['failed_files']) && !empty($_SESSION['failed_files'])): ?>
                                         <div class="alert alert-warning">
                                             <p><strong>Warning:</strong> Some files could not be downloaded:</p>
                                             <ul class="mb-0">
@@ -1262,6 +1423,31 @@ function checkUploadSize() {
                                                 <?php endforeach; ?>
                                             </ul>
                                             <?php unset($_SESSION['failed_files']); ?>
+                                            
+                                            <?php if (isset($_SESSION['permission_issue_likely']) && $_SESSION['permission_issue_likely']): ?>
+                                            <div class="alert alert-danger mt-3">
+                                                <h5 class="alert-heading">Permission Issues Detected</h5>
+                                                <p>It looks like PHP doesn't have permission to create directories or write files on this server. This is common on shared hosting environments.</p>
+                                                
+                                                <h6 class="mt-3">Manual Installation Steps:</h6>
+                                                <ol>
+                                                    <li>Download the complete application from <a href="https://github.com/sw82/divelog/archive/refs/heads/master.zip" target="_blank" class="alert-link">GitHub</a></li>
+                                                    <li>Extract the files on your computer</li>
+                                                    <li>Upload all files to your server via FTP</li>
+                                                    <li>Create the required directories manually:
+                                                        <ul>
+                                                            <li>uploads/ (and subdirectories dive_images/ and fish_images/)</li>
+                                                            <li>backups/</li>
+                                                            <li>temp/</li>
+                                                        </ul>
+                                                    </li>
+                                                    <li>Set directory permissions to 755 or 775</li>
+                                                    <li>Create a config.php file using the template in the README</li>
+                                                    <li><a href="?step=3&skip_file_creation=1" class="btn btn-sm btn-primary mt-2">Continue with database setup</a></li>
+                                                </ol>
+                                            </div>
+                                            <?php unset($_SESSION['permission_issue_likely']); ?>
+                                            <?php endif; ?>
                                         </div>
                                     <?php endif; ?>
                                 <?php endif; ?>
