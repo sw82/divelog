@@ -46,50 +46,26 @@ try {
         $messages[] = "<div class='info'>The dive_site column already exists in the divelogs table.</div>";
     }
     
-    // Check and add activity_type column if it doesn't exist
-    $checkActivityTypeColumn = $conn->query("SHOW COLUMNS FROM divelogs LIKE 'activity_type'");
+    // Check for common indexes and add if missing
+    $checkDateIndex = $conn->query("SHOW INDEX FROM divelogs WHERE Key_name = 'idx_date'");
     
-    if ($checkActivityTypeColumn->num_rows == 0) {
-        $alterActivityTypeQuery = "ALTER TABLE divelogs 
-                      ADD COLUMN activity_type ENUM('diving') NOT NULL DEFAULT 'diving' 
-                      COMMENT 'Type of activity (diving only, as per requirements)'";
-        
-        if ($conn->query($alterActivityTypeQuery)) {
-            $messages[] = "<div class='success'>Successfully added activity_type column to divelogs table.</div>";
-            
-            // Update existing records to set them as 'diving'
-            $updateActivityTypeQuery = "UPDATE divelogs SET activity_type = 'diving' WHERE activity_type IS NULL";
-            if ($conn->query($updateActivityTypeQuery)) {
-                $messages[] = "<div class='success'>Successfully updated existing records with default activity type.</div>";
-            } else {
-                throw new Exception("Error updating records: " . $conn->error);
-            }
+    if ($checkDateIndex->num_rows == 0) {
+        $createDateIndexQuery = "CREATE INDEX idx_date ON divelogs(date)";
+        if ($conn->query($createDateIndexQuery)) {
+            $messages[] = "<div class='success'>Successfully created index on date column.</div>";
         } else {
-            throw new Exception("Error altering table: " . $conn->error);
+            $messages[] = "<div class='warning'>Failed to create index on date column: " . $conn->error . "</div>";
         }
-    } else {
-        // Check if the column already exists but has snorkeling as an option
-        $columnInfo = $conn->query("SHOW COLUMNS FROM divelogs WHERE Field = 'activity_type'")->fetch_assoc();
-        $columnType = $columnInfo['Type'];
-        
-        if (strpos($columnType, 'snorkeling') !== false) {
-            // Convert any snorkeling entries to diving
-            $updateSnorkelingQuery = "UPDATE divelogs SET activity_type = 'diving' WHERE activity_type = 'snorkeling'";
-            if ($conn->query($updateSnorkelingQuery)) {
-                $messages[] = "<div class='success'>Successfully converted snorkeling entries to diving.</div>";
-                
-                // Alter the column to remove the snorkeling option
-                $alterColumnQuery = "ALTER TABLE divelogs MODIFY COLUMN activity_type ENUM('diving') NOT NULL DEFAULT 'diving' COMMENT 'Type of activity (diving only)'";
-                if ($conn->query($alterColumnQuery)) {
-                    $messages[] = "<div class='success'>Successfully removed snorkeling option from activity_type column.</div>";
-                } else {
-                    $messages[] = "<div class='warning'>Failed to modify activity_type column: " . $conn->error . "</div>";
-                }
-            } else {
-                $messages[] = "<div class='warning'>Failed to convert snorkeling entries: " . $conn->error . "</div>";
-            }
+    }
+    
+    $checkLocationIndex = $conn->query("SHOW INDEX FROM divelogs WHERE Key_name = 'idx_location'");
+    
+    if ($checkLocationIndex->num_rows == 0) {
+        $createLocationIndexQuery = "CREATE INDEX idx_location ON divelogs(location)";
+        if ($conn->query($createLocationIndexQuery)) {
+            $messages[] = "<div class='success'>Successfully created index on location column.</div>";
         } else {
-            $messages[] = "<div class='info'>The activity_type column already exists with diving-only option.</div>";
+            $messages[] = "<div class='warning'>Failed to create index on location column: " . $conn->error . "</div>";
         }
     }
     

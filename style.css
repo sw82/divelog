@@ -1461,4 +1461,78 @@ table th {
 
 .mr-2 {
     margin-right: 0.5rem;
+}
+
+/* Dive Details Sidebar */
+.dive-details-sidebar {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 350px;
+    height: 100vh;
+    background-color: white;
+    box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+    z-index: 1000;
+    overflow-y: auto;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+    display: none; /* Initially hidden */
+}
+
+.dive-details-sidebar.active {
+    transform: translateX(0);
+    display: block !important; /* Force display when active */
+}
+
+.sidebar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #eee;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.sidebar-header h3 {
+    margin: 0;
+    font-size: 1.2rem;
+}
+
+.close-sidebar {
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    cursor: pointer;
+}
+
+.sidebar-content {
+    padding: 15px;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 30px 20px;
+    color: #6c757d;
+}
+
+.empty-icon {
+    font-size: 3rem;
+    margin-bottom: 15px;
+    color: #adb5bd;
+}
+
+@media (max-width: 768px) {
+    .dive-details-sidebar {
+        width: 100%;
+        height: 50vh;
+        top: 50%;
+        transform: translateY(100%);
+    }
+    
+    .dive-details-sidebar.active {
+        transform: translateY(0);
+    }
 } 

@@ -727,16 +727,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
                         </div>
                     </div>
                     <?php endif; ?>
-                    
-                    <?php if (!empty($editEntry['activity_type'])): ?>
-                    <div class="detail-item">
-                        <i class="fas fa-water"></i>
-                        <div class="detail-content">
-                            <div class="detail-label">Activity Type</div>
-                            <div class="detail-value"><?php echo ucfirst(htmlspecialchars($editEntry['activity_type'])); ?></div>
-                        </div>
-                    </div>
-                    <?php endif; ?>
                 </div>
                 
                 <?php if (!empty($editEntry['description'])): ?>

@@ -1,4 +1,190 @@
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('Script.js loaded');
+    
+    // If map.js has already defined these functions, we use them
+    // Otherwise, we define our own versions
+    if (typeof renderDiveStats !== 'function') {
+        // Only define if not already defined by map.js
+        window.renderDiveStats = function(dives) {
+            console.log(`Rendering dive stats for ${dives.length} dives`);
+            
+            // Get stats container
+            const statsContainer = document.getElementById('dive-stats');
+            if (!statsContainer) {
+                console.error('Stats container #dive-stats not found in DOM. Creating it...');
+                // Try to find the parent container and create the missing element
+                const parentContainer = document.querySelector('.dive-stats-container');
+                if (parentContainer) {
+                    const rowDiv = document.createElement('div');
+                    rowDiv.id = 'dive-stats';
+                    rowDiv.className = 'row';
+                    parentContainer.prepend(rowDiv);
+                    console.log('Created #dive-stats container');
+                } else {
+                    console.error('Could not find parent container .dive-stats-container');
+                    return;
+                }
+            }
+            
+            // Get the stats container again in case we just created it
+            const container = document.getElementById('dive-stats');
+            if (!container) {
+                console.error('Still cannot find #dive-stats container after attempted creation');
+                return;
+            }
+            
+            // Clear existing content
+            container.innerHTML = '';
+            
+            // Calculate statistics
+            const totalDives = dives.length;
+            
+            // Find max depth
+            let maxDepth = 0;
+            dives.forEach(dive => {
+                const depth = parseFloat(dive.max_depth || dive.depth || 0);
+                if (depth > maxDepth) maxDepth = depth;
+            });
+            
+            // Calculate average duration
+            let totalDuration = 0;
+            let durationsCount = 0;
+            dives.forEach(dive => {
+                const duration = parseInt(dive.dive_duration || dive.duration || 0);
+                if (duration > 0) {
+                    totalDuration += duration;
+                    durationsCount++;
+                }
+            });
+            const avgDuration = durationsCount > 0 ? Math.round(totalDuration / durationsCount) : 0;
+            
+            // Count unique locations
+            const locations = new Set();
+            dives.forEach(dive => {
+                if (dive.location) locations.add(dive.location);
+            });
+            const locationCount = locations.size;
+            
+            // Calculate total dive time
+            const totalDiveTime = totalDuration;
+            const totalDiveHours = Math.floor(totalDiveTime / 60);
+            const totalDiveMinutes = totalDiveTime % 60;
+            
+            // Find the latest dive
+            let latestDive = null;
+            if (dives.length > 0) {
+                latestDive = dives.reduce((latest, dive) => {
+                    const diveDate = new Date(dive.date || dive.dive_date);
+                    const latestDate = latest ? new Date(latest.date || latest.dive_date) : new Date(0);
+                    return diveDate > latestDate ? dive : latest;
+                });
+            }
+            
+            // Create stat cards
+            const stats = [
+                {
+                    title: 'Total Dives',
+                    value: totalDives,
+                    subtext: `${locationCount} unique locations`,
+                    icon: 'fa-diving-scuba',
+                    color: '#4363d8'
+                },
+                {
+                    title: 'Max Depth',
+                    value: `${maxDepth}m`,
+                    subtext: 'deepest dive',
+                    icon: 'fa-water',
+                    color: '#3cb44b'
+                },
+                {
+                    title: 'Average Duration',
+                    value: `${avgDuration} min`,
+                    subtext: 'per dive',
+                    icon: 'fa-clock',
+                    color: '#ffe119'
+                },
+                {
+                    title: 'Total Dive Time',
+                    value: `${totalDiveHours}h ${totalDiveMinutes}m`,
+                    subtext: 'underwater',
+                    icon: 'fa-hourglass-half',
+                    color: '#f58231'
+                }
+            ];
+            
+            // If we have a latest dive, add it
+            if (latestDive) {
+                const diveDate = new Date(latestDive.date || latestDive.dive_date);
+                const formattedDate = diveDate.toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric',
+                    year: 'numeric'
+                });
+                
+                stats.push({
+                    title: 'Latest Dive',
+                    value: formattedDate,
+                    subtext: latestDive.location,
+                    icon: 'fa-calendar-check',
+                    color: '#911eb4'
+                });
+            }
+            
+            // Calculate depth-duration-consumption correlation
+            const depthDurationStats = calculateDepthDurationStats(dives);
+            if (depthDurationStats) {
+                stats.push({
+                    title: 'Depth & Duration',
+                    value: depthDurationStats.value,
+                    subtext: depthDurationStats.subtext,
+                    icon: 'fa-tachometer-alt',
+                    color: '#e6194B'
+                });
+            }
+            
+            console.log(`Created ${stats.length} stat cards for rendering`);
+            
+            // Create HTML for stats
+            stats.forEach(stat => {
+                const cardCol = document.createElement('div');
+                cardCol.className = 'col-md-6 col-lg stat-col mb-3';
+                
+                cardCol.innerHTML = `
+                    <div class="stat-card" style="border-top: 3px solid ${stat.color}">
+                        <div class="stat-icon">
+                            <i class="fas ${stat.icon}" style="color: ${stat.color}"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3 class="stat-title">${stat.title}</h3>
+                            <div class="stat-value">${stat.value}</div>
+                            <div class="stat-subtext">${stat.subtext}</div>
+                        </div>
+                    </div>
+                `;
+                
+                container.appendChild(cardCol);
+            });
+            
+            console.log(`Dive stats rendering complete with ${stats.length} stats cards`);
+        };
+    }
+    
+    // Initialize stats if dive data is available
+    if (typeof diveLogsData !== 'undefined' && diveLogsData.length > 0) {
+        console.log(`Found ${diveLogsData.length} dive logs for statistics`);
+        
+        // Render dive statistics
+        renderDiveStats(diveLogsData);
+        
+        // Render most valuable stats
+        renderMostValuableStats(diveLogsData);
+        
+        // Render advanced stats
+        renderAdvancedStats(diveLogsData);
+    } else {
+        console.warn("No dive log data available for statistics.");
+    }
+
     // Force a hard refresh when coming from a delete operation
     if (window.location.href.includes('cache_bust')) {
         console.log('Cache bust parameter detected, performing full data refresh');
@@ -211,85 +397,14 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Function to display markers based on selected year
     function displayMarkers(selectedYear) {
-        // Clear all existing markers from the map
-        markers.forEach(function(marker) {
-            if (marker._map) { // Only remove if it's on the map
-                map.removeLayer(marker);
-            }
-        });
+        // This function is now replaced by map.js's mapDisplayMarkers
+        console.log("script.js displayMarkers called, but using mapDisplayMarkers from map.js instead");
         
-        // Remove all markers from the cluster group
-        markerClusterGroup.clearLayers();
-        
-        // Reset markers array
-        markers = [];
-        
-        // Create a bounds object to fit visible markers
-        var bounds = L.latLngBounds();
-        let visibleCount = 0;
-        
-        // Add markers for all visible dives (without manual proximity grouping)
-        if (typeof diveLogsData !== 'undefined' && diveLogsData.length > 0) {
-            diveLogsData.forEach(function(diveLog) {
-                if (selectedYear === 'all' || diveLog.year === selectedYear) {
-                    // This dive should be visible
-                    visibleCount++;
-                    
-                    const latLng = [parseFloat(diveLog.latitude), parseFloat(diveLog.longitude)];
-                    const markerColor = getColorForYear(diveLog.year);
-                    
-                    // Create a marker for this dive
-                    let marker = createColoredMarker(latLng[0], latLng[1], markerColor, 1);
-                    
-                    // Create popup content for a single dive
-                    const popupContent = createSingleDivePopup(diveLog);
-                    
-                    // Bind popup to marker with responsive dimensions
-                    const popupDimensions = getPopupDimensions();
-                    marker.bindPopup(popupContent, {
-                        maxWidth: popupDimensions.maxWidth,
-                        minWidth: popupDimensions.minWidth,
-                        className: 'dive-popup-container'
-                    });
-                    
-                    // Store the year with the marker for filtering
-                    marker.diveYear = diveLog.year;
-                    
-                    // Store the dive data with the marker for cluster popups
-                    marker.diveData = diveLog;
-                    
-                    // Add explicit click handler to ensure popup opens
-                    marker.on('click', function(e) {
-                        this.openPopup();
-                    });
-                    
-                    // Add to markers array and to cluster group
-                    markers.push(marker);
-                    markerClusterGroup.addLayer(marker);
-                    bounds.extend(marker.getLatLng());
-                }
-            });
-            
-            // Fit map to visible markers
-            if (visibleCount > 1 && bounds.isValid()) {
-                map.fitBounds(bounds, {
-                    padding: [50, 50] // Add some padding around the bounds
-                });
-            } else if (visibleCount === 1 && bounds.isValid()) {
-                // If there's only one visible marker, center on it with a closer zoom
-                map.setView(bounds.getCenter(), 10);
-            } else if (visibleCount === 0) {
-                // If there are no markers, show world view
-                map.setView([20, 0], 2);
-            }
-            
-            // Update counter in UI
-            const countElement = document.getElementById('filtered-count');
-            if (countElement) {
-                countElement.textContent = visibleCount;
-            }
+        // Make sure mapDisplayMarkers is available
+        if (typeof mapDisplayMarkers === 'function' && typeof diveLogsData !== 'undefined') {
+            mapDisplayMarkers(diveLogsData, selectedYear);
         } else {
-            console.warn('No dive logs data available or data is empty');
+            console.error("mapDisplayMarkers function not available or diveLogsData not defined");
         }
     }
     
@@ -582,137 +697,433 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Function to render dive statistics
-    function renderDiveStats(dives) {
-        // Get stats container
-        const statsContainer = document.getElementById('dive-stats');
-        if (!statsContainer) return;
-        
-        // Clear existing content
-        statsContainer.innerHTML = '';
-        
-        // Calculate statistics
-        const totalDives = dives.length;
-        
-        // Find max depth
-        let maxDepth = 0;
-        dives.forEach(dive => {
+    // Function to calculate statistics about depth related to dive length and air consumption
+    function calculateDepthDurationStats(dives) {
+        // Filter dives that have depth, duration and air consumption data
+        const validDives = dives.filter(dive => {
             const depth = parseFloat(dive.max_depth || dive.depth || 0);
-            if (depth > maxDepth) maxDepth = depth;
+            const duration = parseFloat(dive.dive_duration || dive.duration || 0);
+            const airStart = parseFloat(dive.air_consumption_start || 0);
+            const airEnd = parseFloat(dive.air_consumption_end || 0);
+            
+            return depth > 0 && duration > 0 && airStart > 0 && airEnd > 0;
         });
         
-        // Calculate average duration
-        let totalDuration = 0;
-        let durationsCount = 0;
-        dives.forEach(dive => {
-            const duration = parseInt(dive.dive_duration || dive.duration || 0);
-            if (duration > 0) {
-                totalDuration += duration;
-                durationsCount++;
-            }
-        });
-        const avgDuration = durationsCount > 0 ? Math.round(totalDuration / durationsCount) : 0;
-        
-        // Count unique locations
-        const locations = new Set();
-        dives.forEach(dive => {
-            if (dive.location) locations.add(dive.location);
-        });
-        const locationCount = locations.size;
-        
-        // Calculate total dive time
-        const totalDiveTime = totalDuration;
-        const totalDiveHours = Math.floor(totalDiveTime / 60);
-        const totalDiveMinutes = totalDiveTime % 60;
-        
-        // Find the latest dive
-        let latestDive = null;
-        if (dives.length > 0) {
-            latestDive = dives.reduce((latest, dive) => {
-                const diveDate = new Date(dive.date || dive.dive_date);
-                const latestDate = latest ? new Date(latest.date || latest.dive_date) : new Date(0);
-                return diveDate > latestDate ? dive : latest;
-            });
+        if (validDives.length < 3) {
+            // Not enough data for meaningful statistics
+            return {
+                value: 'N/A',
+                subtext: 'Need more data'
+            };
         }
         
-        // Create stat cards
-        const stats = [
-            {
-                title: 'Total Dives',
-                value: totalDives,
-                subtext: `${locationCount} unique locations`,
-                icon: 'fa-diving-scuba',
-                color: '#4363d8'
-            },
-            {
-                title: 'Max Depth',
-                value: `${maxDepth}m`,
-                subtext: 'deepest dive',
-                icon: 'fa-water',
-                color: '#3cb44b'
-            },
-            {
-                title: 'Average Duration',
-                value: `${avgDuration} min`,
-                subtext: 'per dive',
-                icon: 'fa-clock',
-                color: '#ffe119'
-            },
-            {
-                title: 'Total Dive Time',
-                value: `${totalDiveHours}h ${totalDiveMinutes}m`,
-                subtext: 'underwater',
-                icon: 'fa-hourglass-half',
-                color: '#f58231'
-            }
-        ];
+        // Calculate air consumption per minute for each dive
+        const consumptionRates = validDives.map(dive => {
+            const depth = parseFloat(dive.max_depth || dive.depth);
+            const duration = parseFloat(dive.dive_duration || dive.duration);
+            const airStart = parseFloat(dive.air_consumption_start);
+            const airEnd = parseFloat(dive.air_consumption_end);
+            const consumption = airStart - airEnd;
+            const consumptionRate = consumption / duration; // bar per minute
+            
+            return {
+                depth,
+                duration,
+                consumptionRate,
+                efficiency: depth / consumptionRate, // meters per bar/min - higher is more efficient
+                location: dive.location,
+                date: dive.date || dive.dive_date,
+                dive_site: dive.dive_site,
+                air_start: airStart,
+                air_end: airEnd
+            };
+        });
         
-        // If we have a latest dive, add it
-        if (latestDive) {
-            const diveDate = new Date(latestDive.date || latestDive.dive_date);
-            const formattedDate = diveDate.toLocaleDateString('en-US', { 
+        // Calculate average consumption rate
+        const avgConsumptionRate = consumptionRates.reduce((sum, dive) => sum + dive.consumptionRate, 0) / consumptionRates.length;
+        
+        // Calculate average efficiency (depth/consumption)
+        const avgEfficiency = consumptionRates.reduce((sum, dive) => sum + dive.efficiency, 0) / consumptionRates.length;
+        
+        // Find the most efficient dive (highest depth-to-consumption ratio)
+        const mostEfficient = consumptionRates.reduce((best, current) => 
+            current.efficiency > best.efficiency ? current : best, consumptionRates[0]);
+        
+        // Find the least efficient dive (lowest depth-to-consumption ratio)
+        const leastEfficient = consumptionRates.reduce((worst, current) => 
+            current.efficiency < worst.efficiency ? current : worst, consumptionRates[0]);
+        
+        // Format the result
+        const avgConsumptionFormatted = avgConsumptionRate.toFixed(1);
+        
+        return {
+            value: `${avgConsumptionFormatted} bar/min`,
+            subtext: `Depth efficiency: ${avgEfficiency.toFixed(1)}m per bar/min`,
+            details: {
+                avgConsumptionRate,
+                avgEfficiency,
+                mostEfficient,
+                leastEfficient,
+                consumptionRates: consumptionRates
+            }
+        };
+    }
+    
+    // Function to populate the most valuable dive stats 
+    function renderMostValuableStats(dives) {
+        console.log(`Rendering most valuable stats for ${dives.length} dives`);
+        
+        // Get container elements
+        const mostEfficientContainer = document.getElementById('most-efficient-dive');
+        const leastEfficientContainer = document.getElementById('least-efficient-dive');
+        
+        if (!mostEfficientContainer || !leastEfficientContainer) {
+            console.error('Most/least efficient dive containers not found:', 
+                mostEfficientContainer ? 'most-efficient-dive found' : 'most-efficient-dive missing',
+                leastEfficientContainer ? 'least-efficient-dive found' : 'least-efficient-dive missing'
+            );
+            
+            // Try to locate parent containers and create missing elements
+            const parentContainer = document.getElementById('most-valuable-stats');
+            if (parentContainer && !mostEfficientContainer) {
+                console.log('Attempting to create most-efficient-dive container');
+                const mostEfficientCard = parentContainer.querySelector('.col-md-6:first-child .stat-content');
+                if (mostEfficientCard) {
+                    const div = document.createElement('div');
+                    div.id = 'most-efficient-dive';
+                    div.className = 'valuable-stat-content';
+                    mostEfficientCard.appendChild(div);
+                }
+            }
+            
+            if (parentContainer && !leastEfficientContainer) {
+                console.log('Attempting to create least-efficient-dive container');
+                const leastEfficientCard = parentContainer.querySelector('.col-md-6:last-child .stat-content');
+                if (leastEfficientCard) {
+                    const div = document.createElement('div');
+                    div.id = 'least-efficient-dive';
+                    div.className = 'valuable-stat-content';
+                    leastEfficientCard.appendChild(div);
+                }
+            }
+        }
+        
+        // Check if we have enough data
+        const validDives = dives.filter(dive => 
+            dive.depth && 
+            dive.duration && 
+            dive.air_consumption_start && 
+            dive.air_consumption_end
+        );
+        
+        if (validDives.length < 2) {
+            // Not enough data for comparison
+            const message = "Need at least 2 dives with complete depth, duration, and air consumption data";
+            console.log(message);
+            
+            if (mostEfficientContainer) {
+                mostEfficientContainer.innerHTML = `<p class="text-muted text-center">${message}</p>`;
+            }
+            
+            if (leastEfficientContainer) {
+                leastEfficientContainer.innerHTML = `<p class="text-muted text-center">${message}</p>`;
+            }
+            
+            return;
+        }
+        
+        // Calculate consumption rate and efficiency for each dive
+        const divesWithMetrics = validDives.map(dive => {
+            const depth = parseFloat(dive.depth);
+            const duration = parseFloat(dive.duration);
+            const airStart = parseFloat(dive.air_consumption_start);
+            const airEnd = parseFloat(dive.air_consumption_end);
+            
+            const consumption = airStart - airEnd;
+            const consumptionRate = consumption / duration; // bar per minute
+            
+            return {
+                ...dive,
+                depth,
+                duration,
+                air_start: airStart,
+                air_end: airEnd,
+                consumption,
+                consumptionRate,
+                efficiency: depth / consumptionRate, // meters per bar/min - higher is more efficient
+            };
+        });
+        
+        // Sort by efficiency (descending)
+        divesWithMetrics.sort((a, b) => b.efficiency - a.efficiency);
+        
+        // Get most and least efficient dives
+        const mostEfficient = divesWithMetrics[0];
+        const leastEfficient = divesWithMetrics[divesWithMetrics.length - 1];
+        
+        console.log('Most efficient dive:', mostEfficient.location, 'with efficiency', mostEfficient.efficiency.toFixed(2));
+        console.log('Least efficient dive:', leastEfficient.location, 'with efficiency', leastEfficient.efficiency.toFixed(2));
+        
+        // Render most efficient dive
+        if (mostEfficientContainer) {
+            const date = new Date(mostEfficient.date);
+            const formattedDate = date.toLocaleDateString('en-US', { 
+                year: 'numeric', 
                 month: 'short', 
-                day: 'numeric',
-                year: 'numeric'
+                day: 'numeric' 
             });
             
-            stats.push({
-                title: 'Latest Dive',
-                value: formattedDate,
-                subtext: latestDive.location,
-                icon: 'fa-calendar-check',
-                color: '#911eb4'
-            });
-        }
-        
-        // Create HTML for stats
-        stats.forEach(stat => {
-            const cardCol = document.createElement('div');
-            cardCol.className = 'col-md-6 col-lg stat-col mb-3';
-            
-            cardCol.innerHTML = `
-                <div class="stat-card" style="border-top: 3px solid ${stat.color}">
-                    <div class="stat-icon">
-                        <i class="fas ${stat.icon}" style="color: ${stat.color}"></i>
+            mostEfficientContainer.innerHTML = `
+                <div class="stat-metric">
+                    <div class="stat-metric-value">${mostEfficient.efficiency.toFixed(2)}</div>
+                    <div class="stat-metric-unit">meters per bar/min</div>
+                </div>
+                <p class="dive-location">${mostEfficient.location}</p>
+                <p class="dive-date">${formattedDate}</p>
+                <div class="detail-grid">
+                    <div class="detail-item">
+                        <i class="fas fa-water"></i> ${mostEfficient.depth}m
                     </div>
-                    <div class="stat-content">
-                        <h3 class="stat-title">${stat.title}</h3>
-                        <div class="stat-value">${stat.value}</div>
-                        <div class="stat-subtext">${stat.subtext}</div>
+                    <div class="detail-item">
+                        <i class="fas fa-clock"></i> ${mostEfficient.duration}min
+                    </div>
+                    <div class="detail-item">
+                        <i class="fas fa-compress-alt"></i> ${(mostEfficient.air_start - mostEfficient.air_end).toFixed(0)}bar
+                    </div>
+                    <div class="detail-item">
+                        <i class="fas fa-tachometer-alt"></i> ${mostEfficient.consumptionRate.toFixed(2)}bar/min
                     </div>
                 </div>
             `;
+        }
+        
+        // Render least efficient dive
+        if (leastEfficientContainer) {
+            const date = new Date(leastEfficient.date);
+            const formattedDate = date.toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric' 
+            });
             
-            statsContainer.appendChild(cardCol);
-        });
+            leastEfficientContainer.innerHTML = `
+                <div class="stat-metric">
+                    <div class="stat-metric-value">${leastEfficient.efficiency.toFixed(2)}</div>
+                    <div class="stat-metric-unit">meters per bar/min</div>
+                </div>
+                <p class="dive-location">${leastEfficient.location}</p>
+                <p class="dive-date">${formattedDate}</p>
+                <div class="detail-grid">
+                    <div class="detail-item">
+                        <i class="fas fa-water"></i> ${leastEfficient.depth}m
+                    </div>
+                    <div class="detail-item">
+                        <i class="fas fa-clock"></i> ${leastEfficient.duration}min
+                    </div>
+                    <div class="detail-item">
+                        <i class="fas fa-compress-alt"></i> ${(leastEfficient.air_start - leastEfficient.air_end).toFixed(0)}bar
+                    </div>
+                    <div class="detail-item">
+                        <i class="fas fa-tachometer-alt"></i> ${leastEfficient.consumptionRate.toFixed(2)}bar/min
+                    </div>
+                </div>
+            `;
+        }
+        
+        console.log('Most valuable stats rendering complete');
     }
-
-    // Call renderDiveStats when dives data is loaded
-    const origFunc = window.displayMarkers;
-    if (origFunc) {
-        window.displayMarkers = function(dives, selectedYear) {
-            origFunc(dives, selectedYear);
-            renderDiveStats(dives);
-        };
+    
+    // Function to render advanced statistics
+    function renderAdvancedStats(dives) {
+        console.log(`Rendering advanced stats for ${dives.length} dives`);
+        
+        const container = document.getElementById('depth-duration-stats');
+        if (!container) {
+            console.error('Advanced stats container #depth-duration-stats not found');
+            return;
+        }
+        
+        // Filter dives that have depth, duration and air consumption data
+        const validDives = dives.filter(dive => 
+            dive.depth && 
+            dive.duration && 
+            dive.air_consumption_start && 
+            dive.air_consumption_end
+        );
+        
+        if (validDives.length < 3) {
+            container.innerHTML = `
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle mr-2"></i>
+                    <strong>Insufficient Data:</strong> Add more dives with complete depth, duration, and air consumption information to view advanced statistics.
+                </div>
+            `;
+            console.log('Not enough dive data for advanced stats (need at least 3 dives)');
+            return;
+        }
+        
+        console.log(`Processing ${validDives.length} valid dives for advanced stats`);
+        
+        // Calculate metrics for each dive
+        const divesWithMetrics = validDives.map(dive => {
+            const depth = parseFloat(dive.depth);
+            const duration = parseFloat(dive.duration);
+            const airStart = parseFloat(dive.air_consumption_start);
+            const airEnd = parseFloat(dive.air_consumption_end);
+            
+            const consumption = airStart - airEnd;
+            const consumptionRate = consumption / duration; // bar per minute
+            
+            return {
+                ...dive,
+                depth,
+                duration,
+                air_start: airStart,
+                air_end: airEnd,
+                consumption,
+                consumptionRate,
+                efficiency: depth / consumptionRate // meters per bar/min - higher is more efficient
+            };
+        });
+        
+        // Sort by efficiency
+        divesWithMetrics.sort((a, b) => b.efficiency - a.efficiency);
+        
+        // Calculate averages
+        const avgDepth = divesWithMetrics.reduce((sum, dive) => sum + dive.depth, 0) / divesWithMetrics.length;
+        const avgDuration = divesWithMetrics.reduce((sum, dive) => sum + dive.duration, 0) / divesWithMetrics.length;
+        const avgConsumptionRate = divesWithMetrics.reduce((sum, dive) => sum + dive.consumptionRate, 0) / divesWithMetrics.length;
+        const avgEfficiency = divesWithMetrics.reduce((sum, dive) => sum + dive.efficiency, 0) / divesWithMetrics.length;
+        
+        // Get most and least efficient dives
+        const mostEfficient = divesWithMetrics[0];
+        const leastEfficient = divesWithMetrics[divesWithMetrics.length - 1];
+        
+        // Create HTML content
+        const html = `
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-header bg-primary text-white">
+                            <h6 class="mb-0">Air Consumption Overview</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between mb-2">
+                                <div>Average Consumption Rate:</div>
+                                <strong>${avgConsumptionRate.toFixed(2)} bar/min</strong>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <div>Average Efficiency:</div>
+                                <strong>${avgEfficiency.toFixed(2)} m per bar/min</strong>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <div>Most Efficient Dive:</div>
+                                <strong>${mostEfficient.efficiency.toFixed(2)} m per bar/min</strong>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <div>Least Efficient Dive:</div>
+                                <strong>${leastEfficient.efficiency.toFixed(2)} m per bar/min</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-8">
+                    <div class="card h-100">
+                        <div class="card-header bg-primary text-white">
+                            <h6 class="mb-0">Factors Affecting Air Consumption</h6>
+                        </div>
+                        <div class="card-body">
+                            <p>Air consumption is typically affected by:</p>
+                            <ul>
+                                <li><strong>Depth:</strong> Greater depth = higher pressure = more air consumption</li>
+                                <li><strong>Activity Level:</strong> More exertion = higher air consumption</li>
+                                <li><strong>Experience:</strong> More experienced divers typically have better air efficiency</li>
+                                <li><strong>Equipment:</strong> Properly maintained gear minimizes air loss</li>
+                                <li><strong>Physical Fitness:</strong> Better fitness = improved breathing efficiency</li>
+                                <li><strong>Stress/Anxiety:</strong> Calm divers use less air</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header bg-success text-white">
+                            <h6 class="mb-0">Best Air Efficiency</h6>
+                        </div>
+                        <div class="card-body">
+                            <h5>${mostEfficient.location}, ${new Date(mostEfficient.date).toLocaleDateString()}</h5>
+                            <div class="dive-details">
+                                <p class="mb-1"><strong>Depth:</strong> ${mostEfficient.depth.toFixed(1)} meters</p>
+                                <p class="mb-1"><strong>Duration:</strong> ${mostEfficient.duration} minutes</p>
+                                <p class="mb-1"><strong>Consumption:</strong> ${(mostEfficient.air_start - mostEfficient.air_end).toFixed(0)} bar total</p>
+                                <p class="mb-1"><strong>Consumption Rate:</strong> ${mostEfficient.consumptionRate.toFixed(2)} bar/min</p>
+                                <p class="mb-1"><strong>Efficiency:</strong> ${mostEfficient.efficiency.toFixed(2)} m per bar/min</p>
+                                ${mostEfficient.comments ? `<p class="mt-2"><strong>Comments:</strong> ${mostEfficient.comments}</p>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header bg-danger text-white">
+                            <h6 class="mb-0">Worst Air Efficiency</h6>
+                        </div>
+                        <div class="card-body">
+                            <h5>${leastEfficient.location}, ${new Date(leastEfficient.date).toLocaleDateString()}</h5>
+                            <div class="dive-details">
+                                <p class="mb-1"><strong>Depth:</strong> ${leastEfficient.depth.toFixed(1)} meters</p>
+                                <p class="mb-1"><strong>Duration:</strong> ${leastEfficient.duration} minutes</p>
+                                <p class="mb-1"><strong>Consumption:</strong> ${(leastEfficient.air_start - leastEfficient.air_end).toFixed(0)} bar total</p>
+                                <p class="mb-1"><strong>Consumption Rate:</strong> ${leastEfficient.consumptionRate.toFixed(2)} bar/min</p>
+                                <p class="mb-1"><strong>Efficiency:</strong> ${leastEfficient.efficiency.toFixed(2)} m per bar/min</p>
+                                ${leastEfficient.comments ? `<p class="mt-2"><strong>Comments:</strong> ${leastEfficient.comments}</p>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mt-4">
+                <div class="col-12">
+                    <h5 class="mb-3">Air Consumption vs. Depth Analysis</h5>
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead class="table-primary">
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Location</th>
+                                    <th>Depth (m)</th>
+                                    <th>Duration (min)</th>
+                                    <th>Air Used (bar)</th>
+                                    <th>Rate (bar/min)</th>
+                                    <th>Efficiency (m per bar/min)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${divesWithMetrics.map(dive => `
+                                    <tr>
+                                        <td>${new Date(dive.date).toLocaleDateString()}</td>
+                                        <td>${dive.location}</td>
+                                        <td>${dive.depth.toFixed(1)}</td>
+                                        <td>${dive.duration}</td>
+                                        <td>${(dive.air_start - dive.air_end).toFixed(0)}</td>
+                                        <td>${dive.consumptionRate.toFixed(2)}</td>
+                                        <td>${dive.efficiency.toFixed(2)}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        container.innerHTML = html;
+        console.log('Advanced stats rendering complete');
     }
 });

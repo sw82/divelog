@@ -9,8 +9,43 @@
 
 // Security check to ensure this script isn't left on the server
 session_start();
+
+// Check if reset requested - clear session and restart
+if (isset($_GET['reset'])) {
+    // Clear all installation data from session
+    unset($_SESSION['form_data']);
+    unset($_SESSION['install_token']);
+    
+    // Initialize with default values
+    $_SESSION['form_data'] = [
+        'db_host' => 'localhost',
+        'db_user' => '',
+        'db_pass' => '',
+        'db_name' => 'divelog',
+        'admin_email' => '',
+        'db_port' => 3306,
+        'socket_path' => '',
+        'use_socket' => false
+    ];
+    
+    // Redirect to the first step
+    header('Location: install.php?step=1&cleared=1');
+    exit;
+}
+
 if (!isset($_SESSION['install_token'])) {
     $_SESSION['install_token'] = bin2hex(random_bytes(32));
+}
+
+// Initialize form data storage in session if not exists
+if (!isset($_SESSION['form_data'])) {
+    $_SESSION['form_data'] = [
+        'db_host' => 'localhost',
+        'db_user' => '',
+        'db_pass' => '',
+        'db_name' => 'divelog',
+        'admin_email' => ''
+    ];
 }
 
 // Set error reporting for debugging during installation
@@ -77,16 +112,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
         case 3: // Database configuration
             if (isset($_POST['create_config'])) {
-                $dbHost = $_POST['db_host'] ?? 'localhost';
-                $dbUser = $_POST['db_user'] ?? '';
-                $dbPass = $_POST['db_pass'] ?? '';
-                $dbName = $_POST['db_name'] ?? '';
+                // Store form values in session
+                $_SESSION['form_data']['db_host'] = $_POST['db_host'] ?? 'localhost';
+                $_SESSION['form_data']['db_user'] = $_POST['db_user'] ?? '';
+                $_SESSION['form_data']['db_pass'] = $_POST['db_pass'] ?? '';
+                $_SESSION['form_data']['db_name'] = $_POST['db_name'] ?? 'divelog';
+                $_SESSION['form_data']['db_port'] = $_POST['db_port'] ?? 3306;
+                $_SESSION['form_data']['socket_path'] = $_POST['socket_path'] ?? '';
+                $_SESSION['form_data']['use_socket'] = isset($_POST['use_socket']) && $_POST['use_socket'] == '1';
                 
-                // Test database connection
-                $conn = @new mysqli($dbHost, $dbUser, $dbPass);
-                if ($conn->connect_error) {
-                    $error = "Database connection failed: " . $conn->connect_error;
-                } else {
+                // Get values from session
+                $dbHost = $_SESSION['form_data']['db_host'];
+                $dbUser = $_SESSION['form_data']['db_user'];
+                $dbPass = $_SESSION['form_data']['db_pass'];
+                $dbName = $_SESSION['form_data']['db_name'];
+                $dbPort = $_SESSION['form_data']['db_port'];
+                $socketPath = $_SESSION['form_data']['socket_path'];
+                $useSocket = $_SESSION['form_data']['use_socket'];
+                
+                // Store additional connection settings in session
+                $_SESSION['form_data']['db_port'] = $dbPort;
+                $_SESSION['form_data']['socket_path'] = $socketPath;
+                $_SESSION['form_data']['use_socket'] = $useSocket;
+                
+                // Add connection timeout to prevent long hangs
+                $conn = null;
+                try {
+                    // Test database connection with error handling
+                    mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT); // Enable exceptions
+                    
+                    // Set socket path if provided
+                    if ($useSocket && !empty($socketPath)) {
+                        ini_set('mysqli.default_socket', $socketPath);
+                    }
+                    
+                    // Connect with appropriate parameters
+                    $conn = new mysqli($dbHost, $dbUser, $dbPass, null, $dbPort, null, 10); // 10 second timeout
+                    
                     // Create database if it doesn't exist
                     $conn->query("CREATE DATABASE IF NOT EXISTS `$dbName`");
                     
@@ -94,7 +156,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $conn->select_db($dbName);
                     
                     // Create config file
-                    $configResult = createConfigFile($dbHost, $dbUser, $dbPass, $dbName);
+                    $configResult = createConfigFile($dbHost, $dbUser, $dbPass, $dbName, $socketPath, $dbPort);
                     if ($configResult === true) {
                         $message = "Configuration file created successfully!";
                         $success = true;
@@ -102,7 +164,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $error = "Error creating configuration file: " . $configResult;
                     }
                     
-                    $conn->close();
+                    if ($conn) $conn->close();
+                } catch (mysqli_sql_exception $e) {
+                    $errorCode = $e->getCode();
+                    $errorMessage = $e->getMessage();
+                    
+                    if (strpos($errorMessage, 'No such file or directory') !== false) {
+                        $error = "Cannot connect to MySQL server at '$dbHost'. This could be due to:<br>
+                            1. The MySQL server is not running<br>
+                            2. The hostname is incorrect<br>
+                            3. MySQL is using a non-standard socket location<br><br>
+                            Technical details: " . $errorMessage;
+                    } else if ($errorCode == 1045) {
+                        $error = "Access denied. Please check your database username and password.";
+                    } else if ($errorCode == 1044) {
+                        $error = "Access denied when selecting the database. Make sure the user has necessary privileges.";
+                    } else if ($errorCode == 2002) {
+                        $error = "Cannot connect to MySQL server. Please check that the server is running and accessible.";
+                    } else {
+                        $error = "Database error: " . $errorMessage;
+                    }
                 }
             } elseif (isset($_POST['proceed'])) {
                 header('Location: install.php?step=4');
@@ -127,7 +208,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
         case 5: // Finalize installation
             if (isset($_POST['finalize'])) {
-                $adminEmail = $_POST['admin_email'] ?? '';
+                $_SESSION['form_data']['admin_email'] = $_POST['admin_email'] ?? '';
+                $adminEmail = $_SESSION['form_data']['admin_email'];
                 
                 $finishResult = finalizeInstallation($adminEmail);
                 if ($finishResult === true) {
@@ -252,19 +334,33 @@ function checkExistingInstallation() {
 /**
  * Create configuration file
  */
-function createConfigFile($host, $user, $pass, $name) {
+function createConfigFile($host, $user, $pass, $name, $socket = null, $port = 3306) {
     global $configFile;
     
     try {
+        $socketConfig = '';
+        if (!empty($socket)) {
+            $socketConfig = "\n// Socket path configuration
+ini_set('mysqli.default_socket', '" . addslashes($socket) . "');";
+        }
+        
+        $portConfig = '';
+        if ($port != 3306) {
+            $portConfig = ", " . (int)$port;
+        } else {
+            $portConfig = '';
+        }
+        
         $configContent = "<?php
 // Database configuration
 define('DB_HOST', '" . addslashes($host) . "');
 define('DB_USER', '" . addslashes($user) . "');
 define('DB_PASS', '" . addslashes($pass) . "');
 define('DB_NAME', '" . addslashes($name) . "');
+define('DB_PORT', " . (int)$port . ");$socketConfig
 
 // Create connection
-\$conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+\$conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME$portConfig);
 
 // Check connection
 if (\$conn->connect_error) {
@@ -560,6 +656,14 @@ function checkUploadSize() {
                         <div class="d-flex gap-2 flex-wrap">
                             <a href="?force_new=1" class="btn btn-warning">Ignore and Continue Installation</a>
                             <a href="index.php" class="btn btn-primary">Go to Existing Installation</a>
+                            <a href="?reset=1" class="btn btn-danger">Start Fresh Installation</a>
+                        </div>
+                        <div class="mt-2 small text-muted">
+                            <ul class="mb-0">
+                                <li><strong>Ignore and Continue:</strong> Proceeds with installation while keeping existing files</li>
+                                <li><strong>Go to Existing Installation:</strong> Exits the installer and opens your current application</li>
+                                <li><strong>Start Fresh:</strong> Resets all installation progress and begins from step 1 with default settings</li>
+                            </ul>
                         </div>
                     </div>
                 </div>
@@ -685,6 +789,7 @@ function checkUploadSize() {
                             <?php endif; ?>
                         </div>
                         <div>
+                            <a href="?reset=1" class="btn btn-outline-secondary me-2">Reset</a>
                             <button type="submit" name="proceed" class="btn btn-primary" <?php echo !$canProceed ? 'disabled' : ''; ?>>
                                 Continue
                             </button>
@@ -728,6 +833,7 @@ function checkUploadSize() {
                         </div>
                         <div>
                             <a href="?step=1" class="btn btn-secondary me-2">Back</a>
+                            <a href="?reset=1" class="btn btn-outline-secondary me-2">Reset</a>
                             <button type="submit" name="proceed" class="btn btn-primary" <?php echo !$success && !file_exists($uploadsDir) ? 'disabled' : ''; ?>>
                                 Continue
                             </button>
@@ -747,23 +853,50 @@ function checkUploadSize() {
                         <form method="post" action="?step=3">
                             <div class="mb-3">
                                 <label for="db_host" class="form-label">Database Host</label>
-                                <input type="text" class="form-control" id="db_host" name="db_host" value="localhost" required>
+                                <input type="text" class="form-control" id="db_host" name="db_host" value="<?php echo htmlspecialchars($_SESSION['form_data']['db_host']); ?>" required>
+                                <div class="form-text">Usually 'localhost' or an IP address. For shared hosting, check with your provider.</div>
                             </div>
                             
                             <div class="mb-3">
                                 <label for="db_user" class="form-label">Database Username</label>
-                                <input type="text" class="form-control" id="db_user" name="db_user" required>
+                                <input type="text" class="form-control" id="db_user" name="db_user" value="<?php echo htmlspecialchars($_SESSION['form_data']['db_user']); ?>" required>
                             </div>
                             
                             <div class="mb-3">
                                 <label for="db_pass" class="form-label">Database Password</label>
-                                <input type="password" class="form-control" id="db_pass" name="db_pass">
+                                <input type="password" class="form-control" id="db_pass" name="db_pass" value="<?php echo htmlspecialchars($_SESSION['form_data']['db_pass']); ?>">
                             </div>
                             
                             <div class="mb-3">
                                 <label for="db_name" class="form-label">Database Name</label>
-                                <input type="text" class="form-control" id="db_name" name="db_name" value="divelog" required>
+                                <input type="text" class="form-control" id="db_name" name="db_name" value="<?php echo htmlspecialchars($_SESSION['form_data']['db_name']); ?>" required>
                                 <div class="form-text">If the database doesn't exist, the installer will attempt to create it.</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <a class="btn btn-link p-0" data-bs-toggle="collapse" href="#advancedOptions" role="button" aria-expanded="false" aria-controls="advancedOptions">
+                                    <i class="bi bi-gear-fill"></i> Advanced Options
+                                </a>
+                                <div class="collapse mt-2" id="advancedOptions">
+                                    <div class="card card-body bg-light">
+                                        <div class="form-check mb-3">
+                                            <input class="form-check-input" type="checkbox" id="useSocket" name="use_socket" value="1">
+                                            <label class="form-check-label" for="useSocket">
+                                                Use custom MySQL socket path
+                                            </label>
+                                        </div>
+                                        <div class="mb-3 socket-path" style="display: none;">
+                                            <label for="socketPath" class="form-label">MySQL Socket Path</label>
+                                            <input type="text" class="form-control" id="socketPath" name="socket_path" placeholder="/var/run/mysqld/mysqld.sock">
+                                            <div class="form-text">Common paths: /var/run/mysqld/mysqld.sock, /tmp/mysql.sock, /var/lib/mysql/mysql.sock</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="dbPort" class="form-label">MySQL Port</label>
+                                            <input type="number" class="form-control" id="dbPort" name="db_port" value="3306">
+                                            <div class="form-text">Default is 3306. Change only if your MySQL server uses a different port.</div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                             
                             <div class="d-flex justify-content-between">
@@ -774,6 +907,7 @@ function checkUploadSize() {
                                 </div>
                                 <div>
                                     <a href="?step=2" class="btn btn-secondary me-2">Back</a>
+                                    <a href="?reset=1" class="btn btn-outline-secondary me-2">Reset</a>
                                     <button type="submit" name="proceed" class="btn btn-primary" <?php echo !$success && !file_exists($configFile) ? 'disabled' : ''; ?>>
                                         Continue
                                     </button>
@@ -848,6 +982,7 @@ function checkUploadSize() {
                                     </div>
                                     <div>
                                         <a href="?step=3" class="btn btn-secondary me-2">Back</a>
+                                        <a href="?reset=1" class="btn btn-outline-secondary me-2">Reset</a>
                                         <button type="submit" name="proceed" class="btn btn-primary" <?php echo !$success && !file_exists($configFile) ? 'disabled' : ''; ?>>
                                             Continue
                                         </button>
@@ -873,7 +1008,7 @@ function checkUploadSize() {
                         <form method="post" action="?step=5">
                             <div class="mb-3">
                                 <label for="admin_email" class="form-label">Admin Email (Optional)</label>
-                                <input type="email" class="form-control" id="admin_email" name="admin_email" placeholder="your@email.com">
+                                <input type="email" class="form-control" id="admin_email" name="admin_email" value="<?php echo htmlspecialchars($_SESSION['form_data']['admin_email']); ?>" placeholder="your@email.com">
                                 <div class="form-text">This will be stored for future reference.</div>
                             </div>
                             
@@ -885,6 +1020,7 @@ function checkUploadSize() {
                             <div class="d-flex justify-content-between">
                                 <div>
                                     <a href="?step=4" class="btn btn-secondary">Back</a>
+                                    <a href="?reset=1" class="btn btn-outline-secondary">Reset</a>
                                 </div>
                                 <div>
                                     <button type="submit" name="finalize" class="btn btn-success">
@@ -916,5 +1052,45 @@ function checkUploadSize() {
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Check if we need to clear local storage (after reset)
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('cleared')) {
+            // Clear all divelog installer related items from localStorage
+            Object.keys(localStorage).forEach(key => {
+                if (key.startsWith('divelog_installer_')) {
+                    localStorage.removeItem(key);
+                }
+            });
+        }
+        
+        // Toggle socket path field visibility
+        const useSocketCheckbox = document.getElementById('useSocket');
+        const socketPathField = document.querySelector('.socket-path');
+        
+        if (useSocketCheckbox && socketPathField) {
+            useSocketCheckbox.addEventListener('change', function() {
+                socketPathField.style.display = this.checked ? 'block' : 'none';
+            });
+        }
+        
+        // Store form values in browser storage for better UX
+        const formFields = document.querySelectorAll('input[type="text"], input[type="password"], input[type="email"], input[type="number"]');
+        formFields.forEach(field => {
+            field.addEventListener('change', function() {
+                if (field.type !== 'password') { // Don't store passwords in localStorage
+                    localStorage.setItem('divelog_installer_' + field.name, field.value);
+                }
+            });
+            
+            // Restore from localStorage if not already set
+            const storedValue = localStorage.getItem('divelog_installer_' + field.name);
+            if (storedValue && field.value === '' && field.type !== 'password') {
+                field.value = storedValue;
+            }
+        });
+    });
+    </script>
 </body>
 </html> 

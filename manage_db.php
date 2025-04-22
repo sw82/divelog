@@ -280,6 +280,11 @@ if (isset($_GET['action']) && $_GET['action'] === 'clear_db') {
             // Start transaction
             $conn->begin_transaction();
             
+            // Disable foreign key checks
+            if (!$conn->query("SET FOREIGN_KEY_CHECKS = 0")) {
+                throw new Exception("Failed to disable foreign key checks: " . $conn->error);
+            }
+            
             // Delete data from all tables in the correct order to respect foreign key constraints
             $tables = [
                 'fish_sightings',
@@ -296,11 +301,17 @@ if (isset($_GET['action']) && $_GET['action'] === 'clear_db') {
                 }
             }
             
+            // Re-enable foreign key checks
+            if (!$conn->query("SET FOREIGN_KEY_CHECKS = 1")) {
+                throw new Exception("Failed to re-enable foreign key checks: " . $conn->error);
+            }
+            
             // Commit transaction
             $conn->commit();
             output("All data has been cleared from the database.");
         } catch (Exception $e) {
             // Rollback on error
+            $conn->query("SET FOREIGN_KEY_CHECKS = 1"); // Ensure FK checks are re-enabled
             $conn->rollback();
             outputError("Database operation failed: " . $e->getMessage());
         }
@@ -340,15 +351,15 @@ if (isset($_GET['action']) && $_GET['action'] === 'populate_sample') {
         
         // 2. Add sample dive locations
         $diveLocations = [
-            ['Great Barrier Reef', -16.7551, 145.9023, '2023-06-15', 'Beautiful coral formations with diverse marine life', 18.5, 45, 26, 29, 15, 'Sarah', 'Reef', 'diving', 5, 'Amazing visibility and vibrant coral colors'],
-            ['Bali Coral Garden', -8.6478, 115.1374, '2023-07-22', 'Colorful coral garden with many small fish', 12.3, 38, 28, 32, 20, 'Mike', 'Reef', 'diving', 4, 'Great spot for underwater photography'],
-            ['Florida Keys', 24.5557, -81.7826, '2023-05-10', 'Shallow reef with numerous fish species', 8.7, 55, 25, 30, 18, 'John', 'Reef', 'snorkeling', 4, 'Perfect for beginners'],
-            ['Cozumel Drift', 20.4230, -86.9223, '2023-08-05', 'Fast drift dive along vibrant wall', 22.1, 42, 27, 31, 25, 'Lisa', 'Wall', 'diving', 5, 'Exhilarating current and great visibility']
+            ['Great Barrier Reef', -16.7551, 145.9023, '2023-06-15', 'Beautiful coral formations with diverse marine life', 18.5, 45, 26, 29, 15, 'Sarah', 'Reef', 5, 'Amazing visibility and vibrant coral colors'],
+            ['Bali Coral Garden', -8.6478, 115.1374, '2023-07-22', 'Colorful coral garden with many small fish', 12.3, 38, 28, 32, 20, 'Mike', 'Reef', 4, 'Great spot for underwater photography'],
+            ['Florida Keys', 24.5557, -81.7826, '2023-05-10', 'Shallow reef with numerous fish species', 8.7, 55, 25, 30, 18, 'John', 'Reef', 4, 'Perfect for beginners'],
+            ['Cozumel Drift', 20.4230, -86.9223, '2023-08-05', 'Fast drift dive along vibrant wall', 22.1, 42, 27, 31, 25, 'Lisa', 'Wall', 5, 'Exhilarating current and great visibility']
         ];
         
         $diveIds = [];
-        $stmt = $conn->prepare("INSERT INTO divelogs (location, latitude, longitude, date, description, depth, duration, temperature, air_temperature, visibility, buddy, dive_site_type, activity_type, rating, comments) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("sddssddddssssss", $location, $latitude, $longitude, $date, $description, $depth, $duration, $temperature, $airTemp, $visibility, $buddy, $siteType, $activityType, $rating, $comments);
+        $stmt = $conn->prepare("INSERT INTO divelogs (location, latitude, longitude, date, description, depth, duration, temperature, air_temperature, visibility, buddy, dive_site_type, rating, comments) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("sddssddddssss", $location, $latitude, $longitude, $date, $description, $depth, $duration, $temperature, $airTemp, $visibility, $buddy, $siteType, $rating, $comments);
         
         foreach ($diveLocations as $dive) {
             $location = $dive[0];
@@ -363,9 +374,8 @@ if (isset($_GET['action']) && $_GET['action'] === 'populate_sample') {
             $visibility = $dive[9];
             $buddy = $dive[10];
             $siteType = $dive[11];
-            $activityType = $dive[12];
-            $rating = $dive[13];
-            $comments = $dive[14];
+            $rating = $dive[12];
+            $comments = $dive[13];
             $stmt->execute();
             $diveIds[] = $conn->insert_id;
         }
@@ -404,6 +414,46 @@ if (isset($_GET['action']) && $_GET['action'] === 'populate_sample') {
         // Rollback on error
         $conn->rollback();
         outputError("Failed to add sample data: " . $e->getMessage());
+    }
+}
+
+// Handle table truncation
+if (isset($_POST['truncate_table']) && isset($_POST['table_name'])) {
+    $tableName = $_POST['table_name'];
+    
+    // Make sure we have a confirmation for this operation
+    if (!isset($_POST['confirm_truncate']) || $_POST['confirm_truncate'] !== 'true') {
+        $error = "Please confirm that you want to truncate the table by checking the confirmation box.";
+    } else {
+        // Use a transaction for safety
+        $conn->begin_transaction();
+        
+        try {
+            // Temporarily disable foreign key checks - ensure this works by checking success
+            if (!$conn->query("SET FOREIGN_KEY_CHECKS = 0")) {
+                throw new Exception("Failed to disable foreign key checks: " . $conn->error);
+            }
+            
+            // Truncate the table
+            $stmt = $conn->prepare("TRUNCATE TABLE `$tableName`");
+            $result = $stmt->execute();
+            
+            if ($result) {
+                // Re-enable foreign key checks - ensure this works by checking success
+                if (!$conn->query("SET FOREIGN_KEY_CHECKS = 1")) {
+                    throw new Exception("Failed to re-enable foreign key checks: " . $conn->error);
+                }
+                $conn->commit();
+                $success = "Table $tableName has been truncated successfully.";
+            } else {
+                throw new Exception("Error truncating table: " . $stmt->error);
+            }
+        } catch (Exception $e) {
+            // Rollback transaction and re-enable foreign key checks
+            $conn->query("SET FOREIGN_KEY_CHECKS = 1");
+            $conn->rollback();
+            $error = "Database operation failed: " . $e->getMessage();
+        }
     }
 }
 

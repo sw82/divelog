@@ -216,6 +216,45 @@ if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
                     $conn->rollback();
                     $error_message = "Error deleting dive log: " . $e->getMessage();
                 }
+            } elseif ($_POST['action'] === 'quick_add_fish') {
+                // Handle adding a new fish species
+                $commonName = $_POST['common_name'];
+                $scientificName = $_POST['scientific_name'] ?? '';
+                $description = $_POST['description'] ?? '';
+                $habitat = $_POST['habitat'] ?? '';
+                $sizeRange = $_POST['size_range'] ?? '';
+                
+                $stmt = $conn->prepare("INSERT INTO fish_species (common_name, scientific_name, description, habitat, size_range) VALUES (?, ?, ?, ?, ?)");
+                $stmt->bind_param("sssss", $commonName, $scientificName, $description, $habitat, $sizeRange);
+                
+                if ($stmt->execute()) {
+                    $fishSpeciesId = $stmt->insert_id;
+                    $success_message = "New fish species \"$commonName\" added successfully!";
+                    
+                    // Reload fish species after adding a new one
+                    $fish_species = getAllFishSpecies();
+                    
+                    // Handle quick sighting addition if that option was selected
+                    if (isset($_POST['add_sighting']) && $_POST['add_sighting'] == '1') {
+                        $sightingDate = $_POST['sighting_date'] ?? $divelog['date'] ?? date('Y-m-d');
+                        $quantity = $_POST['quantity'] ?? '1';
+                        $notes = $_POST['notes'] ?? '';
+                        
+                        $sightingStmt = $conn->prepare("INSERT INTO fish_sightings (divelog_id, fish_species_id, sighting_date, quantity, notes) VALUES (?, ?, ?, ?, ?)");
+                        $sightingStmt->bind_param("iisss", $dive_id, $fishSpeciesId, $sightingDate, $quantity, $notes);
+                        
+                        if ($sightingStmt->execute()) {
+                            $success_message .= " Fish sighting also added to this dive.";
+                            // Reload fish sightings
+                            $fish_sightings = getDiveFishSightings($dive_id);
+                        } else {
+                            $error_message = "Error adding fish sighting: " . $sightingStmt->error;
+                        }
+                    }
+                } else {
+                    $error_message = "Error adding fish species: " . $stmt->error;
+                }
+                $stmt->close();
             }
         }
     }
@@ -551,14 +590,21 @@ $fish_species = getAllFishSpecies();
                         
                         <div class="form-group">
                             <label for="fish_species_id">Fish Species:</label>
-                            <select class="form-control" id="fish_species_id" name="fish_species_id" required>
-                                <option value="">-- Select Fish Species --</option>
-                                <?php foreach ($fish_species as $species): ?>
-                                    <option value="<?php echo $species['id']; ?>">
-                                        <?php echo htmlspecialchars(($species['common_name'] ?? '') . ' (' . ($species['scientific_name'] ?? '') . ')'); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
+                            <div class="input-group">
+                                <select class="form-control" id="fish_species_id" name="fish_species_id" required>
+                                    <option value="">-- Select Fish Species --</option>
+                                    <?php foreach ($fish_species as $species): ?>
+                                        <option value="<?php echo $species['id']; ?>">
+                                            <?php echo htmlspecialchars(($species['common_name'] ?? '') . ' (' . ($species['scientific_name'] ?? '') . ')'); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <div class="input-group-append">
+                                    <button type="button" class="btn btn-info" data-toggle="modal" data-target="#quickAddFishModal">
+                                        <i class="fas fa-plus"></i> New Fish
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                         
                         <div class="form-group">
@@ -592,6 +638,91 @@ $fish_species = getAllFishSpecies();
     <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/js/all.min.js"></script>
+    
+    <!-- Quick Add Fish Modal -->
+    <div class="modal fade" id="quickAddFishModal" tabindex="-1" role="dialog" aria-labelledby="quickAddFishModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title" id="quickAddFishModalLabel">Quick Add Fish Species</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <form method="POST">
+                    <div class="modal-body">
+                        <input type="hidden" name="action" value="quick_add_fish">
+                        
+                        <div class="form-group">
+                            <label for="common_name">Common Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="common_name" name="common_name" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="scientific_name">Scientific Name</label>
+                            <input type="text" class="form-control" id="scientific_name" name="scientific_name" placeholder="Genus species">
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="habitat">Habitat</label>
+                                    <input type="text" class="form-control" id="habitat" name="habitat" placeholder="e.g., Coral reef, Open ocean">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="size_range">Size Range</label>
+                                    <input type="text" class="form-control" id="size_range" name="size_range" placeholder="e.g., 10-25 cm">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="description">Description</label>
+                            <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                        </div>
+                        
+                        <hr>
+                        
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="add_sighting" name="add_sighting" value="1" checked>
+                            <label class="form-check-label" for="add_sighting">
+                                Also add a sighting of this fish to the current dive
+                            </label>
+                        </div>
+                        
+                        <div id="sighting_details">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="sighting_date_modal">Sighting Date</label>
+                                        <input type="date" class="form-control" id="sighting_date_modal" name="sighting_date" value="<?php echo $divelog['date'] ?? date('Y-m-d'); ?>">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="quantity_modal">Quantity</label>
+                                        <input type="number" class="form-control" id="quantity_modal" name="quantity" min="1" value="1">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="notes_modal">Notes</label>
+                                <textarea class="form-control" id="notes_modal" name="notes" rows="2"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Add Fish Species</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
     <script>
         // Preview images before upload
         document.getElementById('images').addEventListener('change', function(event) {
@@ -628,6 +759,12 @@ $fish_species = getAllFishSpecies();
             if (event.target.files.length > 0) {
                 previewContainer.appendChild(preview);
             }
+        });
+        
+        // Toggle sighting details based on checkbox
+        document.getElementById('add_sighting').addEventListener('change', function() {
+            const sightingDetails = document.getElementById('sighting_details');
+            sightingDetails.style.display = this.checked ? 'block' : 'none';
         });
     </script>
 </body>
