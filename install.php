@@ -211,6 +211,11 @@ if (isset($_GET['download_all'])) {
     if (count($failed_files) > 0) {
         $_SESSION['failed_files'] = $failed_files;
         $_SESSION['full_package_failed'] = true;
+        
+        // Check if all or most files failed - likely a permissions issue
+        if (count($failed_files) > (count($files_to_download) + count($requiredDirs)) * 0.7) {
+            $_SESSION['permission_issue_likely'] = true;
+        }
     } else {
         $_SESSION['full_package_downloaded'] = true;
     }
@@ -434,7 +439,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $error = "Error creating directories: " . $dirResult;
                 }
             } elseif (isset($_POST['proceed'])) {
-                header('Location: install.php?step=3');
+                // If we're in skip_file_creation mode, allow proceeding even if directories don't exist
+                $skipParam = (isset($_GET['skip_file_creation']) && $_GET['skip_file_creation'] == '1') ? '&skip_file_creation=1' : '';
+                header('Location: install.php?step=3' . $skipParam);
                 exit;
             }
             break;
@@ -515,7 +522,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
             } elseif (isset($_POST['proceed'])) {
-                header('Location: install.php?step=4');
+                $skipParam = (isset($_GET['skip_file_creation']) && $_GET['skip_file_creation'] == '1') ? '&skip_file_creation=1' : '';
+                header('Location: install.php?step=4' . $skipParam);
                 exit;
             }
             break;
@@ -530,7 +538,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $error = "Error setting up database: " . $setupResult;
                 }
             } elseif (isset($_POST['proceed'])) {
-                header('Location: install.php?step=5');
+                $skipParam = (isset($_GET['skip_file_creation']) && $_GET['skip_file_creation'] == '1') ? '&skip_file_creation=1' : '';
+                header('Location: install.php?step=5' . $skipParam);
                 exit;
             }
             break;
@@ -1179,6 +1188,44 @@ function checkUploadSize() {
                 </div>
             <?php endif; ?>
 
+            <?php if (isset($_SESSION['full_package_failed']) && $_SESSION['full_package_failed']): ?>
+                <div class="alert alert-warning">
+                    <p><strong>Warning:</strong> Some files could not be downloaded:</p>
+                    <ul class="mb-0">
+                        <?php foreach ($_SESSION['failed_files'] as $failed_file): ?>
+                            <li><?php echo htmlspecialchars($failed_file); ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                    <?php unset($_SESSION['failed_files']); ?>
+                    
+                    <?php if (isset($_SESSION['permission_issue_likely']) && $_SESSION['permission_issue_likely']): ?>
+                        <div class="alert alert-danger mt-3">
+                            <h5 class="alert-heading">Permission Issues Detected</h5>
+                            <p>It looks like PHP doesn't have permission to create directories or write files on this server. This is common on shared hosting environments.</p>
+                            
+                            <h6 class="mt-3">Manual Installation Steps:</h6>
+                            <ol>
+                                <li>Download the complete application from <a href="https://github.com/sw82/divelog/archive/refs/heads/master.zip" target="_blank" class="alert-link">GitHub</a></li>
+                                <li>Extract the files on your computer</li>
+                                <li>Upload all files to your server via FTP</li>
+                                <li>Create the required directories manually:
+                                    <ul>
+                                        <li>uploads/ (and subdirectories dive_images/ and fish_images/)</li>
+                                        <li>backups/</li>
+                                        <li>temp/</li>
+                                    </ul>
+                                </li>
+                                <li>Set directory permissions to 755 or 775</li>
+                                <li>Create a config.php file using the template in the README</li>
+                                <li><a href="?step=3&skip_file_creation=1" class="btn btn-sm btn-primary mt-2">Continue with database setup</a></li>
+                            </ol>
+                        </div>
+                        <?php unset($_SESSION['permission_issue_likely']); ?>
+                    <?php endif; ?>
+                </div>
+                <?php unset($_SESSION['full_package_failed']); ?>
+            <?php endif; ?>
+
             <!-- Step content -->
             <?php if ($step == 1): ?>
                 <!-- Welcome Step -->
@@ -1267,37 +1314,54 @@ function checkUploadSize() {
                         <h5 class="mb-0">Directory Setup</h5>
                     </div>
                     <div class="card-body">
-                        <p>The installer will create the following directories:</p>
-                        <ul>
-                            <?php foreach ($requiredDirs as $dir): ?>
-                                <li>
-                                    <?php echo $dir; ?>
-                                    <?php if (file_exists($baseDir . '/' . $dir)): ?>
-                                        <?php if (is_writable($baseDir . '/' . $dir)): ?>
-                                            <span class="badge bg-success">Exists & Writable</span>
+                        <?php if (isset($_GET['skip_file_creation']) && $_GET['skip_file_creation'] == '1'): ?>
+                            <div class="alert alert-info">
+                                <h5 class="alert-heading">Manual Directory Setup Mode</h5>
+                                <p>The installer is operating in manual setup mode. Please ensure you've created these directories and uploaded the required files before continuing:</p>
+                                <ul>
+                                    <?php foreach ($requiredDirs as $dir): ?>
+                                        <li><?php echo $dir; ?></li>
+                                    <?php endforeach; ?>
+                                </ul>
+                                <p class="mb-0">If you've already set up the directories manually, you can continue to the next step.</p>
+                            </div>
+                        <?php else: ?>
+                            <p>The installer will create the following directories:</p>
+                            <ul>
+                                <?php foreach ($requiredDirs as $dir): ?>
+                                    <li>
+                                        <?php echo $dir; ?>
+                                        <?php if (file_exists($baseDir . '/' . $dir)): ?>
+                                            <?php if (is_writable($baseDir . '/' . $dir)): ?>
+                                                <span class="badge bg-success">Exists & Writable</span>
+                                            <?php else: ?>
+                                                <span class="badge bg-warning">Exists but Not Writable</span>
+                                            <?php endif; ?>
                                         <?php else: ?>
-                                            <span class="badge bg-warning">Exists but Not Writable</span>
+                                            <span class="badge bg-info">Will be created</span>
                                         <?php endif; ?>
-                                    <?php else: ?>
-                                        <span class="badge bg-info">Will be created</span>
-                                    <?php endif; ?>
-                                </li>
-                            <?php endforeach; ?>
-                        </ul>
+                                    </li>
+                                <?php endforeach; ?>
+                            </ul>
+                        <?php endif; ?>
                     </div>
                 </div>
 
-                <form method="post" action="?step=2">
+                <form method="post" action="?step=2<?php echo (isset($_GET['skip_file_creation']) && $_GET['skip_file_creation'] == '1') ? '&skip_file_creation=1' : ''; ?>">
                     <div class="d-flex justify-content-between">
                         <div>
-                            <button type="submit" name="create_dirs" class="btn btn-info">
-                                Create Directories
-                            </button>
+                            <?php if (!(isset($_GET['skip_file_creation']) && $_GET['skip_file_creation'] == '1')): ?>
+                                <button type="submit" name="create_dirs" class="btn btn-info">
+                                    Create Directories
+                                </button>
+                            <?php else: ?>
+                                <a href="?step=2" class="btn btn-outline-secondary">Exit Manual Mode</a>
+                            <?php endif; ?>
                         </div>
                         <div>
-                            <a href="?step=1" class="btn btn-secondary me-2">Back</a>
+                            <a href="?step=1<?php echo (isset($_GET['skip_file_creation']) && $_GET['skip_file_creation'] == '1') ? '&skip_file_creation=1' : ''; ?>" class="btn btn-secondary me-2">Back</a>
                             <a href="?reset=1" class="btn btn-outline-secondary me-2">Reset</a>
-                            <button type="submit" name="proceed" class="btn btn-primary" <?php echo !$success && !file_exists($uploadsDir) ? 'disabled' : ''; ?>>
+                            <button type="submit" name="proceed" class="btn btn-primary" <?php echo !$success && !file_exists($uploadsDir) && !(isset($_GET['skip_file_creation']) && $_GET['skip_file_creation'] == '1') ? 'disabled' : ''; ?>>
                                 Continue
                             </button>
                         </div>
@@ -1317,7 +1381,7 @@ function checkUploadSize() {
                             <p><strong>Need database setup?</strong> <a href="download.php" class="btn btn-sm btn-primary">Download database_setup.sql</a> and import it to your MySQL server before continuing.</p>
                         </div>
 
-                        <form method="post" action="?step=3">
+                        <form method="post" action="?step=3<?php echo (isset($_GET['skip_file_creation']) && $_GET['skip_file_creation'] == '1') ? '&skip_file_creation=1' : ''; ?>">
                             <div class="mb-3">
                                 <label for="db_host" class="form-label">Database Host</label>
                                 <input type="text" class="form-control" id="db_host" name="db_host" value="<?php echo htmlspecialchars($_SESSION['form_data']['db_host']); ?>" required>
@@ -1485,7 +1549,7 @@ function checkUploadSize() {
                                 </div>
                             <?php endif; ?>
                             
-                            <form method="post" action="?step=4">
+                            <form method="post" action="?step=4<?php echo (isset($_GET['skip_file_creation']) && $_GET['skip_file_creation'] == '1') ? '&skip_file_creation=1' : ''; ?>">
                                 <div class="d-flex justify-content-between">
                                     <div>
                                         <button type="submit" name="setup_database" class="btn btn-info" <?php echo !file_exists($databaseSetupFile) ? 'disabled' : ''; ?>>

@@ -127,6 +127,62 @@ If you encounter issues during installation:
 
 For manual troubleshooting, check the installer's detailed error messages or your server's error logs.
 
+### Dealing with Permission Issues
+
+If you see errors like "directory creation failed" or "write failed" during installation:
+
+1. **Check Server Permissions**: 
+   - Most shared hosting environments restrict PHP's ability to create directories or write files
+   - Contact your hosting provider to confirm the correct permissions and directories where PHP can write
+
+2. **Manual Installation Alternative**:
+   - Download the complete application package from GitHub
+   - Extract it on your local computer
+   - Upload all files to your server via FTP
+   - Ensure directories have proper permissions:
+     ```
+     uploads/          (755 or 775)
+     uploads/dive_images  (755 or 775)
+     uploads/fish_images  (755 or 775)
+     backups/          (755 or 775)
+     temp/             (755 or 775)
+     ```
+   - Manually create config.php using the template below
+   - Run the installer with `?step=3` to continue with database setup
+
+3. **Host-Specific Settings**:
+   - Some hosts require files and directories to be in specific locations
+   - For cPanel hosting: place upload directories in `/home/username/public_html/uploads`
+   - For Plesk hosting: use `/var/www/vhosts/domain.com/httpdocs/uploads`
+
+4. **Using FTP for Setup**:
+   - Upload all files via FTP
+   - Create the required directories manually
+   - Set correct permissions using your FTP client
+   - Run the installer with `?skip_file_creation=1` to bypass file creation steps
+
+5. **Config File Template**:
+   ```php
+   <?php
+   // Database configuration
+   define('DB_HOST', 'localhost');
+   define('DB_USER', 'your_username');
+   define('DB_PASS', 'your_password');
+   define('DB_NAME', 'divelog');
+   
+   // Create connection
+   $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+   
+   // Check connection
+   if ($conn->connect_error) {
+     die("Connection failed: " . $conn->connect_error);
+   }
+   
+   // Set charset
+   $conn->set_charset('utf8mb4');
+   ?>
+   ```
+
 ### Advanced Installation Options
 
 The installer provides advanced options for specific needs:
