@@ -69,6 +69,14 @@ if (isset($_GET['clean_marker'])) {
     exit;
 }
 
+// Check if directory contents listing is requested
+if (isset($_GET['list_dir'])) {
+    $_SESSION['show_dir_contents'] = true;
+    // Redirect to the first step
+    header('Location: install.php?step=1');
+    exit;
+}
+
 if (!isset($_SESSION['install_token'])) {
     $_SESSION['install_token'] = bin2hex(random_bytes(32));
 }
@@ -372,11 +380,25 @@ function checkExistingInstallation() {
     }
     
     // Check if installation complete marker exists
-    if (file_exists($baseDir . '/.install_complete')) {
+    $markerFile = $baseDir . '/.install_complete';
+    if (file_exists($markerFile)) {
         $installStatus['complete_marker'] = true;
-        $markerContent = file_get_contents($baseDir . '/.install_complete');
-        $installStatus['details'][] = "Installation completion marker found" . 
-            ($markerContent ? " (created: " . trim(strtok($markerContent, "\n")) . ")" : "");
+        $markerContent = file_get_contents($markerFile);
+        $markerDetails = "Installation marker found at: " . $markerFile;
+        $markerDetails .= $markerContent ? " (created: " . trim(strtok($markerContent, "\n")) . ")" : "";
+        $markerDetails .= " [File size: " . filesize($markerFile) . " bytes]";
+        $installStatus['details'][] = $markerDetails;
+        
+        // Add warning about potential false detection
+        if (!is_readable($markerFile)) {
+            $installStatus['details'][] = "WARNING: Marker file exists but is not readable - permissions issue?";
+        }
+    } else {
+        // Double check using different methods to detect marker issues
+        $allFiles = scandir($baseDir);
+        if (in_array('.install_complete', $allFiles)) {
+            $installStatus['details'][] = "WARNING: Marker file detected in directory listing but file_exists() failed";
+        }
     }
     
     // Check if directories exist
@@ -736,6 +758,33 @@ function checkUploadSize() {
                         <?php endforeach; ?>
                     </ul>
                     
+                    <?php if (isset($_SESSION['show_dir_contents']) && $_SESSION['show_dir_contents']): ?>
+                    <div class="card mb-3">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0">Directory Contents</h5>
+                        </div>
+                        <div class="card-body">
+                            <p>All files in installation directory (including hidden files):</p>
+                            <ul class="mb-0">
+                                <?php 
+                                $allFiles = scandir($baseDir);
+                                foreach ($allFiles as $file) {
+                                    $isHidden = substr($file, 0, 1) === '.';
+                                    $fileSize = is_file($baseDir . '/' . $file) ? filesize($baseDir . '/' . $file) : 'directory';
+                                    echo '<li>' . ($isHidden ? '<strong>' : '') . 
+                                         htmlspecialchars($file) . ($isHidden ? '</strong>' : '') . 
+                                         ' (' . $fileSize . ' bytes)</li>';
+                                }
+                                ?>
+                            </ul>
+                        </div>
+                    </div>
+                    <?php 
+                    // Clear the flag so it only shows once
+                    $_SESSION['show_dir_contents'] = false;
+                    ?>
+                    <?php endif; ?>
+                    
                     <div class="mt-3">
                         <p>You have the following options:</p>
                         <div class="d-flex gap-2 flex-wrap">
@@ -745,6 +794,7 @@ function checkUploadSize() {
                             <?php if (isset($existingInstallation['complete_marker']) && $existingInstallation['complete_marker']): ?>
                             <a href="?clean_marker=1" class="btn btn-outline-secondary">Remove Installation Marker</a>
                             <?php endif; ?>
+                            <a href="?list_dir=1" class="btn btn-outline-info">Show Directory Contents</a>
                         </div>
                         <div class="mt-2 small text-muted">
                             <ul class="mb-0">
@@ -754,6 +804,7 @@ function checkUploadSize() {
                                 <?php if (isset($existingInstallation['complete_marker']) && $existingInstallation['complete_marker']): ?>
                                 <li><strong>Remove Installation Marker:</strong> Deletes the hidden .install_complete file only</li>
                                 <?php endif; ?>
+                                <li><strong>Show Directory Contents:</strong> Displays all files in the directory, including hidden files</li>
                             </ul>
                         </div>
                     </div>
