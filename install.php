@@ -315,28 +315,34 @@ function checkExistingInstallation() {
         
         // Try to connect to the database
         try {
-            require $configFile;
-            $installStatus['db_connected'] = true;
-            $installStatus['details'][] = "Database connection successful";
-            
-            // Check if tables exist
-            $tables = ['divelogs', 'divelog_images', 'fish_species', 'fish_sightings'];
-            $existingTables = [];
-            
-            foreach ($tables as $table) {
-                $result = $conn->query("SHOW TABLES LIKE '$table'");
-                if ($result && $result->num_rows > 0) {
-                    $existingTables[] = $table;
+            // Include config file safely with @ to suppress warning messages
+            if (@include($configFile)) {
+                $installStatus['db_connected'] = true;
+                $installStatus['details'][] = "Database connection successful";
+                
+                // Check if tables exist
+                $tables = ['divelogs', 'divelog_images', 'fish_species', 'fish_sightings'];
+                $existingTables = [];
+                
+                foreach ($tables as $table) {
+                    $result = $conn->query("SHOW TABLES LIKE '$table'");
+                    if ($result && $result->num_rows > 0) {
+                        $existingTables[] = $table;
+                    }
                 }
-            }
-            
-            if (count($existingTables) > 0) {
-                $installStatus['tables_exist'] = true;
-                $installStatus['details'][] = "Found existing tables: " . implode(", ", $existingTables);
+                
+                if (count($existingTables) > 0) {
+                    $installStatus['tables_exist'] = true;
+                    $installStatus['details'][] = "Found existing tables: " . implode(", ", $existingTables);
+                }
+            } else {
+                $installStatus['details'][] = "Config file exists but could not be loaded";
             }
         } catch (Exception $e) {
             $installStatus['details'][] = "Error connecting to database: " . $e->getMessage();
         }
+    } else {
+        $installStatus['details'][] = "No configuration file found";
     }
     
     // Check if installation complete marker exists
@@ -424,10 +430,13 @@ function setupDatabase() {
     try {
         // Include the config file to get DB connection
         if (!file_exists($configFile)) {
-            return "Config file not found";
+            return "Config file not found. Please complete the database configuration step first.";
         }
         
-        require $configFile;
+        // Include config file safely
+        if (!@include($configFile)) {
+            return "Could not load the config file. Please check file permissions.";
+        }
         
         // Check if database file exists
         if (!file_exists($databaseSetupFile)) {
@@ -497,7 +506,7 @@ function finalizeInstallation($adminEmail) {
     
     try {
         if (!file_exists($configFile)) {
-            return "Config file not found";
+            return "Config file not found. Please complete the database configuration step first.";
         }
         
         // Create additional files if needed
