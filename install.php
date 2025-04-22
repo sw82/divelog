@@ -147,7 +147,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     
                     // Connect with appropriate parameters
-                    $conn = new mysqli($dbHost, $dbUser, $dbPass, null, $dbPort, null, 10); // 10 second timeout
+                    $conn = new mysqli($dbHost, $dbUser, $dbPass, null, $dbPort);
                     
                     // Create database if it doesn't exist
                     $conn->query("CREATE DATABASE IF NOT EXISTS `$dbName`");
