@@ -440,7 +440,24 @@ function setupDatabase() {
         
         // Check if database file exists
         if (!file_exists($databaseSetupFile)) {
-            return "Database setup file not found. Please place your database_setup.sql file in the application's root directory.";
+            // Try to download from GitHub repository
+            if (isset($_POST['download_setup_file']) && $_POST['download_setup_file'] == '1') {
+                $setupFileUrl = 'https://raw.githubusercontent.com/sw82/divelog/master/database_setup.sql';
+                $setupFileContent = @file_get_contents($setupFileUrl);
+                
+                if ($setupFileContent !== false) {
+                    // Save the file
+                    if (file_put_contents($databaseSetupFile, $setupFileContent) !== false) {
+                        // Successfully downloaded and saved
+                    } else {
+                        return "download_failed:Failed to save database_setup.sql file. Please check directory permissions.";
+                    }
+                } else {
+                    return "download_failed:Failed to download database_setup.sql file. Please upload it manually.";
+                }
+            } else {
+                return "file_missing:Database setup file not found. Please place your database_setup.sql file in the application's root directory.";
+            }
         }
         
         // Check for existing tables
@@ -972,17 +989,23 @@ function checkUploadSize() {
                     <div class="card-body">
                         <p>Now the installer will set up the database tables required for the Divelog application.</p>
                         
-                        <?php if (file_exists($databaseSetupFile)): ?>
-                            <div class="alert alert-info">
-                                Database setup file found: <?php echo basename($databaseSetupFile); ?>
-                            </div>
-                        <?php else: ?>
-                            <div class="alert alert-danger">
-                                Database setup file not found. Please place your database_setup.sql file in the application's root directory.
-                            </div>
-                        <?php endif; ?>
-                        
                         <?php
+                        // Check for specific error messages
+                        $setupErrorType = '';
+                        $setupErrorMessage = '';
+                        
+                        if (strpos($error, 'download_failed:') === 0) {
+                            $setupErrorType = 'download_failed';
+                            $setupErrorMessage = substr($error, strlen('download_failed:'));
+                            // Clear the general error so we can handle it specially
+                            $error = '';
+                        } else if (strpos($error, 'file_missing:') === 0) {
+                            $setupErrorType = 'file_missing';
+                            $setupErrorMessage = substr($error, strlen('file_missing:'));
+                            // Clear the general error so we can handle it specially
+                            $error = '';
+                        }
+                        
                         // Check if the error message indicates existing tables
                         if (strpos($error, 'existing_tables:') === 0) {
                             $tableList = substr($error, strlen('existing_tables:'));
@@ -1018,7 +1041,46 @@ function checkUploadSize() {
                                     </button>
                                 </form>
                             </div>
+                        <?php } else if ($setupErrorType == 'file_missing' || $setupErrorType == 'download_failed') { ?>
+                            <div class="alert <?php echo $setupErrorType == 'download_failed' ? 'alert-danger' : 'alert-warning'; ?>">
+                                <h5><?php echo $setupErrorMessage; ?></h5>
+                                
+                                <div class="mt-3">
+                                    <p>You have the following options:</p>
+                                    
+                                    <form method="post" action="?step=4" class="mb-3">
+                                        <input type="hidden" name="download_setup_file" value="1">
+                                        <button type="submit" class="btn btn-primary">
+                                            Download Database Setup File
+                                        </button>
+                                    </form>
+                                    
+                                    <p>Or upload the file manually:</p>
+                                    <ol>
+                                        <li>Download the <a href="https://raw.githubusercontent.com/sw82/divelog/master/database_setup.sql" target="_blank">database_setup.sql</a> file to your computer</li>
+                                        <li>Upload it to your server in the same directory as install.php</li>
+                                        <li>Refresh this page</li>
+                                    </ol>
+                                </div>
+                            </div>
                         <?php } else { ?>
+                            <?php if (file_exists($databaseSetupFile)): ?>
+                                <div class="alert alert-info">
+                                    Database setup file found: <?php echo basename($databaseSetupFile); ?>
+                                </div>
+                            <?php else: ?>
+                                <div class="alert alert-warning">
+                                    Database setup file not found. Please place your database_setup.sql file in the application's root directory.
+                                    <form method="post" action="?step=4" class="mt-3">
+                                        <input type="hidden" name="download_setup_file" value="1">
+                                        <button type="submit" class="btn btn-primary">Download Database Setup File</button>
+                                    </form>
+                                    <div class="mt-2">
+                                        <small class="text-muted">This will download the latest database_setup.sql file from the GitHub repository.</small>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+                            
                             <form method="post" action="?step=4">
                                 <div class="d-flex justify-content-between">
                                     <div>
