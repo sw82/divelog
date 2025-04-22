@@ -53,6 +53,22 @@ if (isset($_GET['reset'])) {
     exit;
 }
 
+// Check if clean marker requested - remove installation marker file
+if (isset($_GET['clean_marker'])) {
+    $markerFile = $baseDir . '/.install_complete';
+    if (file_exists($markerFile)) {
+        if (@unlink($markerFile)) {
+            $_SESSION['marker_removed'] = true;
+        } else {
+            $_SESSION['marker_removal_failed'] = true;
+        }
+    }
+    
+    // Redirect to the first step
+    header('Location: install.php?step=1');
+    exit;
+}
+
 if (!isset($_SESSION['install_token'])) {
     $_SESSION['install_token'] = bin2hex(random_bytes(32));
 }
@@ -114,6 +130,16 @@ if (isset($_SESSION['reset_performed']) && $_SESSION['reset_performed'] === true
     $reset_message = "The installation has been completely reset. All settings have been restored to defaults.";
     // Clear the flag so the message appears only once
     $_SESSION['reset_performed'] = false;
+}
+
+// Check for marker removal messages
+$marker_message = '';
+if (isset($_SESSION['marker_removed']) && $_SESSION['marker_removed'] === true) {
+    $marker_message = "Installation marker file has been successfully removed.";
+    $_SESSION['marker_removed'] = false;
+} else if (isset($_SESSION['marker_removal_failed']) && $_SESSION['marker_removal_failed'] === true) {
+    $marker_message = "Failed to remove installation marker file. Please check file permissions.";
+    $_SESSION['marker_removal_failed'] = false;
 }
 
 // Process form submissions based on current step
@@ -348,7 +374,9 @@ function checkExistingInstallation() {
     // Check if installation complete marker exists
     if (file_exists($baseDir . '/.install_complete')) {
         $installStatus['complete_marker'] = true;
-        $installStatus['details'][] = "Installation completion marker found";
+        $markerContent = file_get_contents($baseDir . '/.install_complete');
+        $installStatus['details'][] = "Installation completion marker found" . 
+            ($markerContent ? " (created: " . trim(strtok($markerContent, "\n")) . ")" : "");
     }
     
     // Check if directories exist
@@ -714,12 +742,18 @@ function checkUploadSize() {
                             <a href="?force_new=1" class="btn btn-warning">Ignore and Continue Installation</a>
                             <a href="index.php" class="btn btn-primary">Go to Existing Installation</a>
                             <a href="?reset=1" class="btn btn-danger">Start Fresh Installation</a>
+                            <?php if (isset($existingInstallation['complete_marker']) && $existingInstallation['complete_marker']): ?>
+                            <a href="?clean_marker=1" class="btn btn-outline-secondary">Remove Installation Marker</a>
+                            <?php endif; ?>
                         </div>
                         <div class="mt-2 small text-muted">
                             <ul class="mb-0">
                                 <li><strong>Ignore and Continue:</strong> Proceeds with installation while keeping existing files</li>
                                 <li><strong>Go to Existing Installation:</strong> Exits the installer and opens your current application</li>
                                 <li><strong>Start Fresh:</strong> Resets all installation progress and begins from step 1 with default settings</li>
+                                <?php if (isset($existingInstallation['complete_marker']) && $existingInstallation['complete_marker']): ?>
+                                <li><strong>Remove Installation Marker:</strong> Deletes the hidden .install_complete file only</li>
+                                <?php endif; ?>
                             </ul>
                         </div>
                     </div>
@@ -729,6 +763,12 @@ function checkUploadSize() {
             <?php if (!empty($reset_message)): ?>
                 <div class="alert alert-info">
                     <i class="bi bi-arrow-repeat"></i> <?php echo $reset_message; ?>
+                </div>
+            <?php endif; ?>
+
+            <?php if (!empty($marker_message)): ?>
+                <div class="alert alert-info">
+                    <i class="bi bi-check-circle"></i> <?php echo $marker_message; ?>
                 </div>
             <?php endif; ?>
 
