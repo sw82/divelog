@@ -33,6 +33,9 @@ if (isset($_GET['reset'])) {
     // Set a flag to indicate a reset was performed
     $_SESSION['reset_performed'] = true;
     
+    // Clear any cached installation checks
+    unset($_SESSION['existing_installation_check']);
+    
     // Initialize with default values
     $_SESSION['form_data'] = [
         'db_host' => 'localhost',
@@ -47,6 +50,9 @@ if (isset($_GET['reset'])) {
     
     // Generate a new token
     $_SESSION['install_token'] = bin2hex(random_bytes(32));
+    
+    // Force a bypass of existing installation detection for this session
+    $_SESSION['bypass_installation_check'] = true;
     
     // Redirect to the first step
     header('Location: install.php?step=1&cleared=1');
@@ -89,12 +95,23 @@ if (isset($_GET['clean_marker'])) {
         $removalSuccess = $emptySuccess !== false;
     }
     
+    // Force removal with system command as a last resort
+    if (!$removalSuccess && file_exists($markerFile) && function_exists('exec')) {
+        @exec('rm -f ' . escapeshellarg($markerFile), $output, $returnVar);
+        error_log("Method 4 (exec rm) result: " . ($returnVar === 0 ? "Success" : "Failed"));
+        $removalSuccess = $returnVar === 0;
+    }
+    
     // Check if the file still exists
     error_log("File exists after removal attempts: " . (file_exists($markerFile) ? "Yes" : "No"));
     
     // Set session variables based on the outcome
     if ($removalSuccess || !file_exists($markerFile)) {
         $_SESSION['marker_removed'] = true;
+        
+        // Also force reset of installation check
+        unset($_SESSION['existing_installation_check']);
+        $_SESSION['bypass_installation_check'] = true;
     } else {
         $_SESSION['marker_removal_failed'] = true;
         // Store detailed error info for debugging
@@ -120,6 +137,159 @@ if (isset($_GET['list_dir'])) {
     $_SESSION['show_dir_contents'] = true;
     // Redirect to the first step
     header('Location: install.php?step=1');
+    exit;
+}
+
+// Check if download all files is requested
+if (isset($_GET['download_all'])) {
+    // List of essential files to download from GitHub
+    $files_to_download = [
+        'index.php',
+        'database_setup.sql',
+        'config.php.example', // Will be renamed to config.php later
+        'navigation.php',
+        'map.js',
+        'get_dive_data.php',
+        'style.css',
+        'check_years.php',
+        'script.js',
+        'manage_db.php',
+        'divelog_functions.php',
+        'populate_db.php',
+        'divelist.php',
+        'export_csv.php',
+        'view_dive.php',
+        'edit_dive.php',
+        'edit_dive_form.php',
+        'fish_manager.php',
+        '.htaccess'
+    ];
+    
+    $downloaded_files = [];
+    $failed_files = [];
+    
+    // Create required directories
+    $requiredDirs = [
+        'uploads', 'uploads/dive_images', 'uploads/fish_images',
+        'backups', 'temp'
+    ];
+    
+    foreach ($requiredDirs as $dir) {
+        $fullPath = $baseDir . '/' . $dir;
+        if (!file_exists($fullPath)) {
+            if (!@mkdir($fullPath, 0755, true)) {
+                $failed_files[] = $dir . ' (directory creation failed)';
+            }
+        }
+    }
+    
+    // Download each file
+    foreach ($files_to_download as $file) {
+        $fileUrl = 'https://raw.githubusercontent.com/sw82/divelog/master/' . $file;
+        $fileContent = @file_get_contents($fileUrl);
+        
+        if ($fileContent !== false) {
+            // Handle special case for config.php.example
+            $targetFile = $file;
+            if ($file === 'config.php.example' && !file_exists($baseDir . '/config.php')) {
+                $targetFile = 'config.php';
+            }
+            
+            if (@file_put_contents($baseDir . '/' . $targetFile, $fileContent) !== false) {
+                $downloaded_files[] = $targetFile;
+            } else {
+                $failed_files[] = $file . ' (write failed)';
+            }
+        } else {
+            $failed_files[] = $file . ' (download failed)';
+        }
+    }
+    
+    // Store results in session
+    $_SESSION['downloaded_files'] = $downloaded_files;
+    
+    if (count($failed_files) > 0) {
+        $_SESSION['failed_files'] = $failed_files;
+        $_SESSION['full_package_failed'] = true;
+    } else {
+        $_SESSION['full_package_downloaded'] = true;
+    }
+    
+    // Redirect to the first step
+    header('Location: install.php?step=1&files_downloaded=1');
+    exit;
+}
+
+// Check if force cleanup requested - aggressive removal of installation markers
+if (isset($_GET['force_cleanup'])) {
+    // List of possible marker files and remnants
+    $filesToRemove = [
+        $baseDir . '/.install_complete',
+        $baseDir . '/install_complete',
+        $baseDir . '/.installation_in_progress',
+        $baseDir . '/.installation_started'
+    ];
+    
+    // Try to remove all possible marker files
+    $removedFiles = [];
+    $failedFiles = [];
+    
+    foreach ($filesToRemove as $file) {
+        if (file_exists($file)) {
+            $removed = false;
+            
+            // Try multiple methods
+            // 1. Direct unlink
+            if (@unlink($file)) {
+                $removed = true;
+            } else {
+                // 2. Truncate first then unlink
+                $fp = @fopen($file, 'w');
+                if ($fp) {
+                    ftruncate($fp, 0);
+                    fclose($fp);
+                    if (@unlink($file)) {
+                        $removed = true;
+                    }
+                }
+                
+                // 3. Replace with empty file
+                if (!$removed && @file_put_contents($file, '') !== false) {
+                    $removed = true;
+                }
+                
+                // 4. System command
+                if (!$removed && function_exists('exec')) {
+                    @exec('rm -f ' . escapeshellarg($file));
+                    if (!file_exists($file)) {
+                        $removed = true;
+                    }
+                }
+            }
+            
+            if ($removed || !file_exists($file)) {
+                $removedFiles[] = $file;
+            } else {
+                $failedFiles[] = $file;
+            }
+        }
+    }
+    
+    // Clear all session data that might include installation status
+    $_SESSION = array();
+    
+    // Set a new session
+    $_SESSION['reset_performed'] = true;
+    $_SESSION['force_cleanup_performed'] = true;
+    $_SESSION['force_cleanup_removed'] = $removedFiles;
+    $_SESSION['force_cleanup_failed'] = $failedFiles;
+    $_SESSION['bypass_installation_check'] = true;
+    
+    // Generate a new token
+    $_SESSION['install_token'] = bin2hex(random_bytes(32));
+    
+    // Redirect to first step
+    header('Location: install.php?step=1&cleanup=done');
     exit;
 }
 
@@ -167,13 +337,20 @@ $requiredDirs = [
 // Check for existing installation
 $existingInstallation = null;
 if (!isset($_GET['force_new'])) {
-    // Use cached check unless explicitly requesting a refresh
-    if (isset($_SESSION['existing_installation_check']) && !isset($_GET['marker_action'])) {
-        $existingInstallation = $_SESSION['existing_installation_check'];
+    // Check if we should bypass the installation check (after reset)
+    if (isset($_SESSION['bypass_installation_check']) && $_SESSION['bypass_installation_check'] === true) {
+        $existingInstallation = false;
+        // Clear the flag after one use
+        unset($_SESSION['bypass_installation_check']);
     } else {
-        $existingInstallation = checkExistingInstallation();
-        // Cache the check result
-        $_SESSION['existing_installation_check'] = $existingInstallation;
+        // Use cached check unless explicitly requesting a refresh
+        if (isset($_SESSION['existing_installation_check']) && !isset($_GET['marker_action'])) {
+            $existingInstallation = $_SESSION['existing_installation_check'];
+        } else {
+            $existingInstallation = checkExistingInstallation();
+            // Cache the check result
+            $_SESSION['existing_installation_check'] = $existingInstallation;
+        }
     }
 }
 
@@ -217,6 +394,24 @@ if (isset($_SESSION['marker_removed']) && $_SESSION['marker_removed'] === true) 
     }
     
     $_SESSION['marker_removal_failed'] = false;
+}
+
+// Check for db file download success
+$db_file_message = '';
+if (isset($_SESSION['db_file_downloaded']) && $_SESSION['db_file_downloaded'] === true) {
+    $db_file_message = "Database setup file successfully downloaded and saved.";
+    $_SESSION['db_file_downloaded'] = false;
+}
+
+// Check for full package download success
+$full_package_message = '';
+if (isset($_SESSION['full_package_downloaded']) && $_SESSION['full_package_downloaded'] === true) {
+    $full_package_message = "Application files have been successfully downloaded. " .
+                           count($_SESSION['downloaded_files']) . " files were downloaded.";
+    $_SESSION['full_package_downloaded'] = false;
+} else if (isset($_SESSION['full_package_failed']) && $_SESSION['full_package_failed'] === true) {
+    $full_package_message = "Failed to download some application files. Please check permissions or try again.";
+    $_SESSION['full_package_failed'] = false;
 }
 
 // Process form submissions based on current step
@@ -408,7 +603,8 @@ function checkExistingInstallation() {
         'tables_exist' => false,
         'directories_exist' => false,
         'complete_marker' => false,
-        'details' => []
+        'details' => [],
+        'inconsistent' => false
     ];
     
     // Check if config file exists
@@ -453,6 +649,18 @@ function checkExistingInstallation() {
     if (file_exists($markerFile)) {
         $installStatus['complete_marker'] = true;
         $markerContent = file_get_contents($markerFile);
+        
+        // Check for future dates in marker file (potential timezone issue)
+        $markerDate = trim(strtok($markerContent, "\n"));
+        if (!empty($markerDate) && strtotime($markerDate) !== false) {
+            $now = time();
+            $markerTimestamp = strtotime($markerDate);
+            
+            if ($markerTimestamp > $now) {
+                $installStatus['details'][] = "WARNING: Installation marker contains a future date ($markerDate). This may indicate a timezone or server clock issue.";
+            }
+        }
+        
         $markerDetails = "Installation marker found at: " . $markerFile;
         $markerDetails .= $markerContent ? " (created: " . trim(strtok($markerContent, "\n")) . ")" : "";
         $markerDetails .= " [File size: " . filesize($markerFile) . " bytes]";
@@ -461,6 +669,12 @@ function checkExistingInstallation() {
         // Add warning about potential false detection
         if (!is_readable($markerFile)) {
             $installStatus['details'][] = "WARNING: Marker file exists but is not readable - permissions issue?";
+        }
+        
+        // Check for inconsistent state (marker exists but no config)
+        if (!$installStatus['config_exists']) {
+            $installStatus['inconsistent'] = true;
+            $installStatus['details'][] = "INCONSISTENT STATE: Installation marker exists but no configuration file found. This suggests an incomplete or corrupted installation.";
         }
     } else {
         // Double check using different methods to detect marker issues
@@ -568,6 +782,8 @@ function setupDatabase() {
                     // Save the file
                     if (file_put_contents($databaseSetupFile, $setupFileContent) !== false) {
                         // Successfully downloaded and saved
+                        $_SESSION['db_file_downloaded'] = true;
+                        return true;
                     } else {
                         return "download_failed:Failed to save database_setup.sql file. Please check directory permissions.";
                     }
@@ -858,7 +1074,9 @@ function checkUploadSize() {
                         <p>You have the following options:</p>
                         <div class="d-flex gap-2 flex-wrap">
                             <a href="?force_new=1" class="btn btn-warning">Ignore and Continue Installation</a>
+                            <?php if (!isset($existingInstallation['inconsistent']) || !$existingInstallation['inconsistent']): ?>
                             <a href="index.php" class="btn btn-primary">Go to Existing Installation</a>
+                            <?php endif; ?>
                             <a href="?reset=1" class="btn btn-danger">Start Fresh Installation</a>
                             <?php if (isset($existingInstallation['complete_marker']) && $existingInstallation['complete_marker']): ?>
                             <a href="?clean_marker=1" class="btn btn-outline-secondary">Remove Installation Marker</a>
@@ -868,7 +1086,9 @@ function checkUploadSize() {
                         <div class="mt-2 small text-muted">
                             <ul class="mb-0">
                                 <li><strong>Ignore and Continue:</strong> Proceeds with installation while keeping existing files</li>
+                                <?php if (!isset($existingInstallation['inconsistent']) || !$existingInstallation['inconsistent']): ?>
                                 <li><strong>Go to Existing Installation:</strong> Exits the installer and opens your current application</li>
+                                <?php endif; ?>
                                 <li><strong>Start Fresh:</strong> Resets all installation progress and begins from step 1 with default settings</li>
                                 <?php if (isset($existingInstallation['complete_marker']) && $existingInstallation['complete_marker']): ?>
                                 <li><strong>Remove Installation Marker:</strong> Deletes the hidden .install_complete file only</li>
@@ -876,6 +1096,49 @@ function checkUploadSize() {
                                 <li><strong>Show Directory Contents:</strong> Displays all files in the directory, including hidden files</li>
                             </ul>
                         </div>
+                        
+                        <?php if (isset($existingInstallation['inconsistent']) && $existingInstallation['inconsistent']): ?>
+                        <div class="alert alert-danger mt-3">
+                            <h5 class="alert-heading">Inconsistent Installation Detected!</h5>
+                            <p>Your installation appears to be incomplete or corrupted. The installation marker file exists, but no configuration file was found.</p>
+                            <p><strong>Recommended action:</strong> Click "Remove Installation Marker" to clear the incomplete installation state, then proceed with a fresh installation.</p>
+                            <div class="mt-3">
+                                <a href="?force_cleanup=1" class="btn btn-danger">Force Complete Cleanup</a>
+                                <small class="text-muted ms-2">Use this option if normal cleanup methods aren't working</small>
+                            </div>
+                        </div>
+                        <?php endif; ?>
+                        
+                        <?php if (isset($_SESSION['force_cleanup_performed']) && $_SESSION['force_cleanup_performed']): ?>
+                        <div class="alert alert-success mt-3">
+                            <h5 class="alert-heading">Force Cleanup Performed</h5>
+                            <?php if (!empty($_SESSION['force_cleanup_removed'])): ?>
+                            <p>Successfully removed the following files:</p>
+                            <ul>
+                                <?php foreach ($_SESSION['force_cleanup_removed'] as $file): ?>
+                                <li><?php echo htmlspecialchars(basename($file)); ?></li>
+                                <?php endforeach; ?>
+                            </ul>
+                            <?php else: ?>
+                            <p>No marker files were found to remove.</p>
+                            <?php endif; ?>
+                            
+                            <?php if (!empty($_SESSION['force_cleanup_failed'])): ?>
+                            <div class="alert alert-warning">
+                                <p>Failed to remove these files:</p>
+                                <ul>
+                                    <?php foreach ($_SESSION['force_cleanup_failed'] as $file): ?>
+                                    <li><?php echo htmlspecialchars(basename($file)); ?></li>
+                                    <?php endforeach; ?>
+                                </ul>
+                                <p>You may need to manually remove these files via FTP or shell access.</p>
+                            </div>
+                            <?php endif; ?>
+                            
+                            <p>The installer has been reset and should now function properly.</p>
+                        </div>
+                        <?php unset($_SESSION['force_cleanup_performed'], $_SESSION['force_cleanup_removed'], $_SESSION['force_cleanup_failed']); ?>
+                        <?php endif; ?>
                     </div>
                 </div>
             <?php endif; ?>
@@ -889,6 +1152,18 @@ function checkUploadSize() {
             <?php if (!empty($marker_message)): ?>
                 <div class="alert alert-info">
                     <i class="bi bi-check-circle"></i> <?php echo $marker_message; ?>
+                </div>
+            <?php endif; ?>
+
+            <?php if (!empty($db_file_message)): ?>
+                <div class="alert alert-info">
+                    <i class="bi bi-check-circle"></i> <?php echo $db_file_message; ?>
+                </div>
+            <?php endif; ?>
+
+            <?php if (!empty($full_package_message)): ?>
+                <div class="alert alert-info">
+                    <i class="bi bi-check-circle"></i> <?php echo $full_package_message; ?>
                 </div>
             <?php endif; ?>
 
@@ -906,120 +1181,85 @@ function checkUploadSize() {
 
             <!-- Step content -->
             <?php if ($step == 1): ?>
-                <!-- Step 1: Requirements Check -->
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h5 class="mb-0">System Requirements Check</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="check-item">
-                            <span>PHP Version (>= 8.0.0)</span>
-                            <span>
-                                <?php $phpVersionCheck = checkPHPVersion(); ?>
-                                <?php if ($phpVersionCheck): ?>
-                                    <span class="badge bg-success">Yes (<?php echo PHP_VERSION; ?>)</span>
-                                <?php else: ?>
-                                    <span class="badge bg-danger">No (<?php echo PHP_VERSION; ?>)</span>
+                <!-- Welcome Step -->
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <div class="card shadow-sm">
+                            <div class="card-body">
+                                <h2>Welcome to Divelog Installation</h2>
+                                <p>This installer will walk you through setting up your Divelog application.</p>
+                                
+                                <?php if (!empty($marker_message)): ?>
+                                    <div class="alert alert-info">
+                                        <i class="bi bi-check-circle"></i> <?php echo $marker_message; ?>
+                                    </div>
                                 <?php endif; ?>
-                            </span>
-                        </div>
-                        
-                        <?php foreach ($requiredExtensions as $ext): ?>
-                            <div class="check-item">
-                                <span>PHP Extension: <?php echo $ext; ?></span>
-                                <span>
-                                    <?php $extCheck = checkExtension($ext); ?>
-                                    <?php if ($extCheck): ?>
-                                        <span class="badge bg-success">Enabled</span>
-                                    <?php else: ?>
-                                        <span class="badge bg-danger">Missing</span>
+                                
+                                <?php if (!empty($db_file_message)): ?>
+                                    <div class="alert alert-success">
+                                        <i class="bi bi-check-circle"></i> <?php echo $db_file_message; ?>
+                                    </div>
+                                <?php endif; ?>
+                                
+                                <?php if (!empty($full_package_message)): ?>
+                                    <div class="alert alert-success">
+                                        <i class="bi bi-check-circle"></i> <?php echo $full_package_message; ?>
+                                    </div>
+                                    
+                                    <?php if (isset($_SESSION['failed_files']) && is_array($_SESSION['failed_files']) && count($_SESSION['failed_files']) > 0): ?>
+                                        <div class="alert alert-warning">
+                                            <p><strong>Warning:</strong> Some files could not be downloaded:</p>
+                                            <ul class="mb-0">
+                                                <?php foreach ($_SESSION['failed_files'] as $failed_file): ?>
+                                                    <li><?php echo htmlspecialchars($failed_file); ?></li>
+                                                <?php endforeach; ?>
+                                            </ul>
+                                            <?php unset($_SESSION['failed_files']); ?>
+                                        </div>
                                     <?php endif; ?>
-                                </span>
+                                <?php endif; ?>
+                                
+                                <?php if ($existingInstallation): ?>
+                                    <div class="alert alert-warning">
+                                        <i class="bi bi-exclamation-triangle"></i> An existing installation was detected.
+                                        <div class="mt-2">
+                                            <a href="?force_new=1" class="btn btn-sm btn-warning">Force New Installation</a>
+                                            <a href="?clean_marker=1" class="btn btn-sm btn-danger">Remove Installation Marker</a>
+                                        </div>
+                                    </div>
+                                <?php else: ?>
+                                    <div class="alert alert-primary">
+                                        <i class="bi bi-info-circle"></i> Before proceeding, make sure you have:
+                                        <ul>
+                                            <li>A MySQL database and valid credentials</li>
+                                            <li>All the required application files</li>
+                                        </ul>
+                                        
+                                        <div class="mt-3">
+                                            <p><strong>Missing files?</strong> You can download them automatically:</p>
+                                            <div class="d-flex gap-2">
+                                                <a href="?download_all=1" class="btn btn-sm btn-primary">
+                                                    <i class="bi bi-download"></i> Download All Required Files
+                                                </a>
+                                                <form method="post" action="?step=3">
+                                                    <input type="hidden" name="download_setup_file" value="1">
+                                                    <button type="submit" class="btn btn-sm btn-outline-primary">
+                                                        <i class="bi bi-file-earmark-code"></i> Download Database Setup File Only
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+                                <?php endif; ?>
+                                
+                                <div class="mt-4 d-flex justify-content-between">
+                                    <div></div>
+                                    <a href="?step=2" class="btn btn-primary">Next: Database Configuration</a>
+                                </div>
                             </div>
-                        <?php endforeach; ?>
-                        
-                        <div class="check-item">
-                            <span>Max Execution Time (>= 300s)</span>
-                            <span>
-                                <?php $timeCheck = checkExecutionTime(); ?>
-                                <?php if ($timeCheck): ?>
-                                    <span class="badge bg-success">OK (<?php echo ini_get('max_execution_time'); ?>s)</span>
-                                <?php else: ?>
-                                    <span class="badge bg-warning">Low (<?php echo ini_get('max_execution_time'); ?>s)</span>
-                                <?php endif; ?>
-                            </span>
-                        </div>
-                        
-                        <div class="check-item">
-                            <span>File Uploads Enabled</span>
-                            <span>
-                                <?php $uploadsCheck = checkFileUploads(); ?>
-                                <?php if ($uploadsCheck): ?>
-                                    <span class="badge bg-success">Enabled</span>
-                                <?php else: ?>
-                                    <span class="badge bg-danger">Disabled</span>
-                                <?php endif; ?>
-                            </span>
-                        </div>
-                        
-                        <div class="check-item">
-                            <span>Upload Max Filesize (>= 10MB)</span>
-                            <span>
-                                <?php $sizeCheck = checkUploadSize(); ?>
-                                <?php if ($sizeCheck): ?>
-                                    <span class="badge bg-success">OK (<?php echo ini_get('upload_max_filesize'); ?>)</span>
-                                <?php else: ?>
-                                    <span class="badge bg-warning">Low (<?php echo ini_get('upload_max_filesize'); ?>)</span>
-                                <?php endif; ?>
-                            </span>
-                        </div>
-                        
-                        <div class="check-item">
-                            <span>Base Directory Writable</span>
-                            <span>
-                                <?php $dirCheck = checkDirWritable($baseDir); ?>
-                                <?php if ($dirCheck): ?>
-                                    <span class="badge bg-success">Yes</span>
-                                <?php else: ?>
-                                    <span class="badge bg-danger">No</span>
-                                <?php endif; ?>
-                            </span>
                         </div>
                     </div>
                 </div>
-
-                <form method="post" action="?step=1">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <?php
-                            $canProceed = checkPHPVersion() && 
-                                         checkDirWritable($baseDir) && 
-                                         checkFileUploads();
-                            
-                            // Check required extensions
-                            foreach ($requiredExtensions as $ext) {
-                                if (!checkExtension($ext)) {
-                                    $canProceed = false;
-                                    break;
-                                }
-                            }
-                            ?>
-                            
-                            <?php if (!$canProceed): ?>
-                                <div class="alert alert-warning">
-                                    Some requirements are not met. The installation may not function correctly.
-                                </div>
-                            <?php endif; ?>
-                        </div>
-                        <div>
-                            <a href="?reset=1" class="btn btn-outline-secondary me-2">Reset</a>
-                            <button type="submit" name="proceed" class="btn btn-primary" <?php echo !$canProceed ? 'disabled' : ''; ?>>
-                                Continue
-                            </button>
-                        </div>
-                    </div>
-                </form>
-
             <?php elseif ($step == 2): ?>
                 <!-- Step 2: Directory Setup -->
                 <div class="card mb-4">
@@ -1073,6 +1313,10 @@ function checkUploadSize() {
                     <div class="card-body">
                         <p>Enter your database connection details:</p>
                         
+                        <div class="alert alert-info">
+                            <p><strong>Need database setup?</strong> <a href="download.php" class="btn btn-sm btn-primary">Download database_setup.sql</a> and import it to your MySQL server before continuing.</p>
+                        </div>
+
                         <form method="post" action="?step=3">
                             <div class="mb-3">
                                 <label for="db_host" class="form-label">Database Host</label>

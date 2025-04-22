@@ -60,6 +60,100 @@ Done with Vibe Coding.
 - [ ] add a proper admin panel to manage all aspects of the application from a single interface
 - [ ] implement HTTPS support by default for better security
 - [ ] create user role system for multiple divers sharing the same installation
+- [x] add readme section about installing and the script 
+
+## Installation Guide
+
+### Using the One-File Installer
+
+The simplest way to install Divelog is using our one-file installer:
+
+1. **Download the Installer**: Get the `install.php` file from the repository
+2. **Upload to Server**: Upload only this file to your web server via FTP or file manager
+3. **Run the Installer**: Navigate to `https://your-domain.com/install.php` in your browser
+4. **Follow the Steps**: The installer will guide you through:
+   - System requirements check
+   - Directory creation
+   - Database configuration
+   - Database setup
+   - Final configuration
+
+The installer automatically:
+- Checks if your server meets all requirements
+- Creates necessary directories with proper permissions
+- Sets up database connection
+- Imports the database schema
+- Creates the configuration file
+- Adds sample data (optional)
+- Self-deletes after completion for security (recommended)
+
+### What to Expect During Installation
+
+The installation process consists of 5 easy steps:
+
+1. **Requirements Check**:
+   - PHP version compatibility (PHP 8.0+ recommended)
+   - Required PHP extensions (mysqli, gd, fileinfo, zip)
+   - Server settings (execution time, file uploads, etc.)
+
+2. **Directory Setup**:
+   - Creates required folders (uploads, backups, temp)
+   - Sets proper permissions (0755)
+   - Verifies write access
+
+3. **Database Configuration**:
+   - Enter database connection details
+   - Tests the connection
+   - Creates configuration file
+
+4. **Database Setup**:
+   - Downloads or imports database schema
+   - Creates all required tables
+   - Handles existing tables (with backup option)
+
+5. **Finalize Installation**:
+   - Completes the setup process
+   - Provides links to the application
+   - Option to delete installer script for security
+
+### Troubleshooting Installation
+
+If you encounter issues during installation:
+
+- **Database Connection Errors**: Verify your database credentials and ensure the database server is running.
+- **Permission Issues**: Make sure the web server user has write access to the installation directory.
+- **Download Failures**: If automatic downloads fail, you can manually upload the required files.
+- **Existing Installation**: The installer will detect and warn about existing installations, offering options to proceed safely.
+
+For manual troubleshooting, check the installer's detailed error messages or your server's error logs.
+
+### Advanced Installation Options
+
+The installer provides advanced options for specific needs:
+
+- **Custom MySQL Socket**: If your database uses a non-standard socket path
+- **Custom Port**: For database servers running on non-default ports
+- **Force Installation**: Override existing installation checks when needed
+- **Manual Download**: Option to manually download and place required files
+
+### Security During Installation
+
+The installer implements several security measures:
+
+- Verification of token authenticity for form submissions
+- Secure handling of database credentials
+- Creation of proper file permissions
+- Option to delete the installer after completion (recommended)
+- Detection of existing installations to prevent accidental data loss
+
+### Post-Installation Steps
+
+After completing the installation:
+
+1. **Set Up HTTPS**: Configure SSL for secure connections (recommended)
+2. **Configure Backups**: Set up regular database backups
+3. **Test the Application**: Try adding a dive and verify all features work
+4. **Update Password**: If using sample data, change any default passwords
 
 ## Recent Changes
 
@@ -140,6 +234,10 @@ Done with Vibe Coding.
   - Implemented automatic backup of existing database before reinstallation
   - Improved user interface with clear warnings and options for existing installations
   - Added force flag option to bypass existing installation checks when needed
+  - Enhanced cleanup functionality with multiple methods for removing installation markers
+  - Added advanced "Force Cleanup" option for resolving stubborn installation issues
+  - Improved handling of inconsistent installation states with clear guidance
+  - Added detailed feedback on cleanup operations for better troubleshooting
 
 ## Project Changes
 
@@ -268,6 +366,16 @@ The Divelog application now includes a simple installer script that makes deploy
 
 The installer will check your server's compatibility, create necessary directories, help you set up your database connection, and initialize the database with the required tables and sample data.
 
+### Database Setup
+
+The application provides an easy way to download the database setup file:
+
+1. **Download the Setup File**: Click the "Download Database setup file" button from the installer
+2. **Import the SQL File**: Use phpMyAdmin or any MySQL client to import the downloaded file
+3. **Complete the Installation**: Follow the remaining steps in the installer to connect to your newly created database
+
+This ensures you have the correct database schema with all necessary tables for the application to function properly.
+
 ### Existing Installation Detection
 
 The installer now includes smart detection for existing installations:
@@ -276,6 +384,15 @@ The installer now includes smart detection for existing installations:
 - Offers options to either continue with the existing installation or start fresh
 - Creates automatic backups before overwriting existing database tables
 - Includes a force mode option to bypass checks when needed
+
+### Enhanced Cleanup Features
+
+The installer includes powerful cleanup capabilities to handle problematic installations:
+- **Multiple Cleanup Methods**: Uses several approaches to ensure all installation markers are properly removed
+- **Force Cleanup Option**: Advanced cleanup functionality for stubborn cases where standard methods fail
+- **Detailed Feedback**: Clear reporting on which files were successfully removed and which might need manual intervention
+- **Session Handling**: Properly resets all session variables to ensure a truly fresh start
+- **Inconsistency Detection**: Identifies and provides specific solutions for inconsistent installation states (like when markers exist but configuration files don't)
 
 ### Security Features
 
