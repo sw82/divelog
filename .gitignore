@@ -60,3 +60,47 @@ uploads/fishimages/*
 # Backup files
 backups/*
 !backups/.gitkeep
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# IDE and editor files
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+
+# SSL certificates
+*.pem
+*.crt
+*.key
+*.csr
+*.cert
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Database dumps and backups (additional formats)
+*.sql
+*.bak
+*.dump
+*.gz
+*.zip
+!database_setup.sql
+
+# User-specific data
+user_data/
+personal/
+
+# Admin panel configuration
+admin_config.php
+
+# Cache files
+cache/
+*.cache

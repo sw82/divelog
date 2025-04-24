@@ -57,8 +57,8 @@ Done with Vibe Coding.
 - [x] install script: in the end I get a "Not Found The requested URL was not found on this server."
 - [x] install script: make sure to copy the needed files from the github source
 - [x] if install script reruns make sure it shall check before what is there already
-- [ ] add a proper admin panel to manage all aspects of the application from a single interface
-- [ ] implement HTTPS support by default for better security
+- [x] add a proper admin panel to manage all aspects of the application from a single interface
+- [x] implement HTTPS support by default for better security
 - [ ] create user role system for multiple divers sharing the same installation
 - [x] add readme section about installing and the script 
 
@@ -212,6 +212,21 @@ After completing the installation:
 4. **Update Password**: If using sample data, change any default passwords
 
 ## Recent Changes
+
+- **Added Admin Panel**:
+  - Created comprehensive admin dashboard to manage all aspects of the application
+  - Centralized interface for managing dives, fish, database operations, and settings
+  - Intuitive navigation with quick access to all administrative functions
+  - Responsive design that works on mobile devices and desktops
+  - Enhanced security with confirmation dialogs for destructive actions
+  - Real-time statistics and system information display
+
+- **HTTPS Support by Default**:
+  - Implemented automatic HTTPS redirection for better security
+  - Added HSTS headers to enforce secure connections
+  - Updated documentation with SSL configuration guidance
+  - Ensured all assets load securely to prevent mixed content warnings
+  - Added fallback for development environments without SSL certificates
 
 - **New One-File Installer Script**:
   - Added a single-file PHP installer that automates the setup process
